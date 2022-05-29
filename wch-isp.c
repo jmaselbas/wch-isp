@@ -28,6 +28,9 @@ typedef uint32_t u32;
 
 #define MIN(a,b)	((a) < (b) ? (a) : (b))
 #define MAX(a,b)	((a) < (b) ? (b) : (a))
+#define LEN(a) (sizeof(a) / sizeof(*a))
+
+#include "devices.h"
 
 #define MAX_PACKET_SIZE 64
 #define SECTOR_SIZE  1024
@@ -361,6 +364,8 @@ static size_t dev_uid_len;
 static u8 isp_key[30]; /* all zero key */
 static u8 xor_key[8];
 
+static struct dev *dev_db;
+
 static int do_progress;
 static int do_reset;
 static int do_verify;
@@ -374,12 +379,24 @@ isp_init(void)
 
 	/* get the device type and id */
 	cmd_identify(&dev_id, &dev_type);
-	/* TODO: print detected chip name */
-	printf("identify: %.2x:%.2x\n", dev_type, dev_id);
+
+	/* match the detected device */
+	for (i = 0; i < LEN(devices); i++) {
+		if (devices[i].type == dev_type && devices[i].id == dev_id) {
+			dev_db = &devices[i];
+			break;
+		}
+	}
+	if (dev_db) {
+		printf("Found chip: %s [0x%.2x%.2x] Flash %dK\n", dev_db->name,
+		       dev_type, dev_id, dev_db->flash_size / SZ_1K);
+	} else {
+		printf("Unknown chip: [0x%.2x%.2x]", dev_type, dev_id);
+	}
 
 	/* get the device uid */
 	dev_uid_len = cmd_read_conf(CFG_MASK_UID, sizeof(dev_uid), dev_uid);
-	printf("uid: ");
+	printf("chip uid: ");
 	for (i = 0; i < dev_uid_len; i++)
 		printf("%.2x ", dev_uid[i]);
 	puts("");
