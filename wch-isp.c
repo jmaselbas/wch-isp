@@ -516,8 +516,6 @@ usage(void)
 	die("");
 }
 
-#define VERSION "0.0.0"
-
 static void
 version(void)
 {
