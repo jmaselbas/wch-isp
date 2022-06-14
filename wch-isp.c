@@ -26,9 +26,10 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
-#define MIN(a,b)	((a) < (b) ? (a) : (b))
-#define MAX(a,b)	((a) < (b) ? (b) : (a))
-#define LEN(a) (sizeof(a) / sizeof(*a))
+#define MIN(a, b)	((a) < (b) ? (a) : (b))
+#define MAX(a, b)	((a) < (b) ? (b) : (a))
+#define LEN(a)		(sizeof(a) / sizeof(*a))
+#define ALIGN(x, a)	(((x) + ((a) - 1)) & ~((a) - 1))
 
 #include "devices.h"
 
@@ -438,7 +439,7 @@ progress_bar(const char *act, size_t current, size_t total)
 static void
 isp_flash(size_t size, u8 *data)
 {
-	u16 nr_sectors = (size / SECTOR_SIZE) + 1;
+	u16 nr_sectors = ALIGN(size, SECTOR_SIZE) / SECTOR_SIZE;
 	size_t off = 0;
 	size_t rem = size;
 	size_t len;
