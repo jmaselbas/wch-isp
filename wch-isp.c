@@ -486,6 +486,7 @@ static void
 flash_file(const char *name)
 {
 	struct stat sb;
+	size_t size;
 	void *bin;
 	int fd;
 
@@ -495,16 +496,17 @@ flash_file(const char *name)
 	if (fstat(fd, &sb) < 0)
 		die("fstat: %s\n", strerror(errno));
 
-	bin = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	size = ALIGN(sb.st_size, 64);
+	bin = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (bin == NULL)
 		die("mmap: %s\n", strerror(errno));
 
-	isp_flash(sb.st_size, bin);
+	isp_flash(size, bin);
 	if (do_verify)
-		isp_verify(sb.st_size, bin);
+		isp_verify(size, bin);
 
 	close(fd);
-	munmap(bin, sb.st_size);
+	munmap(bin, size);
 }
 
 char *argv0;
