@@ -222,7 +222,7 @@ cmd_isp_end(u8 reason)
 	u8 buf[2];
 
 	isp_send_cmd(CMD_ISP_END, sizeof(reason), &reason);
-	if (reason == 0) /* the device is not expected to resond */
+	if (reason == 0) /* the device is not expected to respond */
 		isp_recv_cmd(CMD_ISP_END, sizeof(buf), buf);
 }
 
