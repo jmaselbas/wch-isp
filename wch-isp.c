@@ -16,6 +16,8 @@
 static void usage(void);
 #include "arg.h"
 
+#define __noreturn __attribute__((noreturn))
+
 #ifdef DEBUG
 #define dbg_printf printf
 #else
@@ -73,7 +75,10 @@ typedef uint32_t u32;
 #define ISP_EP_OUT (2 | LIBUSB_ENDPOINT_OUT)
 #define ISP_EP_IN (2 | LIBUSB_ENDPOINT_IN)
 
-static void die(const char *errstr, ...);
+__noreturn static void die(const char *errstr, ...);
+__noreturn static void version(void);
+__noreturn static void usage(void);
+
 static void usb_init(void);
 static void usb_fini(void);
 static size_t usb_send(size_t len, u8 *buf);
