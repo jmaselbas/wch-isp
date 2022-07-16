@@ -1,13 +1,19 @@
 # SPDX-License-Identifier: GPL-2.0-only
-VERSION = 0.0.1
+VERSION = 0.0.2
 
 # Install paths
 PREFIX = /usr/local
 
 # Flags
 CPPFLAGS = -DVERSION=\"$(VERSION)\"
+
+ifeq ($(OS), Windows_NT)
+CFLAGS = -Wall -O2 `pkg-config --cflags libusb-1.0`
+LDFLAGS = -L/mingw64/lib -I/mingw64/include/libusb-1.0 -lusb-1.0
+else
 CFLAGS = -Wall -O2 `pkg-config --cflags libusb-1.0`
 LDFLAGS = `pkg-config --libs libusb-1.0`
+endif
 
 SRC = wch-isp.c
 HDR = arg.h devices.h
@@ -20,7 +26,7 @@ all: $(BIN)
 $(OBJ): arg.h devices.h
 
 $(BIN): $(OBJ)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 install:
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
