@@ -6,10 +6,13 @@ on:
   pull_request:
     branches: [ "master" ]
 jobs:
-  WCH-ISP_Ubuntu:
+  wch-isp_Ubuntu:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
+
+    - name: Install pkg-config libusb-1.0-0-dev
+      run: sudo apt-get pkg-config libusb-1.0-0-dev
 
     - name: Get build timestamp
       id: id_date
@@ -34,7 +37,7 @@ jobs:
         name: wch-isp-Ubuntu-${{env.APP_VERSION}}
         path: ./
 
-  WCH-ISP_Windows:
+  wch-isp_Windows:
     runs-on: windows-latest
     defaults:
       run:
