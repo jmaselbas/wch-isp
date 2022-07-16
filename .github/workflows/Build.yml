@@ -48,7 +48,7 @@ jobs:
       with:
           msystem: MINGW64
           update: true
-          install: git mingw-w64-x86_64-toolchain mingw-w64-x86_64-libusb
+          install: pkg-config make mingw-w64-x86_64-gcc mingw-w64-x86_64-libusb
 
     - name: Get build timestamp
       id: id_date
@@ -62,6 +62,7 @@ jobs:
     - name: Build app
       run: |
          mingw32-make
+         cp /mingw64/bin/libusb-1.0.dll ./
     - name: Upload artifact
       env: 
         APP_VERSION: "${{steps.id_version.outputs.app_version}}"
