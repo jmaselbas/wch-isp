@@ -1,4 +1,4 @@
-#define SZ_1K  (1024 * 1024)
+#define SZ_1K  (1024)
 #define SZ_5K  ( 5 * SZ_1K)
 #define SZ_8K  ( 8 * SZ_1K)
 #define SZ_10K (10 * SZ_1K)
