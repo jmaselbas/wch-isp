@@ -32,7 +32,7 @@ all: $(BIN)
 $(OBJ): arg.h devices.h
 
 $(BIN): $(OBJ)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) -o $@ $^ $(LDFLAGS)
 
 install:
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
