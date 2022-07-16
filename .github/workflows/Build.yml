@@ -1,0 +1,69 @@
+name: Build CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+jobs:
+  WCH-ISP_Ubuntu:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Get build timestamp
+      id: id_date
+      shell: bash
+      run: echo "::set-output name=timestamp::$(date +%Y-%m-%d-%H-%M-%S)"
+
+    - name: Get app version
+      id: id_version
+      shell: bash
+      run: |
+         cd scpi
+         app_major_minor_patch=`grep -oP '(?<=VERSION = )[0-9.]+' Makefile`
+         echo "::set-output name=app_version::v$app_major_minor_patch-${{steps.id_date.outputs.timestamp}}"
+    - name: Build app
+      shell: bash
+      run: |
+         make
+    - name: Upload artifact
+      env: 
+        APP_VERSION: "${{steps.id_version.outputs.app_version}}"
+      uses: actions/upload-artifact@v2
+      with:
+        name: wch-isp-Ubuntu-${{env.APP_VERSION}}
+        path: ./
+
+  WCH-ISP_Windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+    - uses: actions/checkout@v2
+    - uses: msys2/setup-msys2@v2
+      with:
+          msystem: MINGW64
+          update: true
+          install: git mingw-w64-x86_64-toolchain mingw-w64-x86_64-libusb
+
+    - name: Get build timestamp
+      id: id_date
+      run: echo "::set-output name=timestamp::$(date +%Y-%m-%d-%H-%M-%S)"
+
+    - name: Get app version
+      id: id_version     
+      run: |
+         app_major_minor_patch=`grep -oP '(?<=VERSION = )[0-9.]+' Makefile`
+         echo "::set-output name=app_version::v$app_major_minor_patch-${{steps.id_date.outputs.timestamp}}"
+    - name: Build app
+      run: |
+         mingw32-make
+    - name: Upload artifact
+      env: 
+        APP_VERSION: "${{steps.id_version.outputs.app_version}}"
+      uses: actions/upload-artifact@v2
+      with:
+        name: wch-isp-Windows-${{env.APP_VERSION}}
+        path: ./
