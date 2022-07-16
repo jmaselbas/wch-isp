@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* SPDX-FileCopyrightText: 2022 Jules Maselbas */
+/* SPDX-FileCopyrightText: 2022 Benjamin Vernoux */
 #include <unistd.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -10,13 +11,18 @@
 #include <libusb.h>
 
 #include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
+
+#ifndef __WIN32__
+	#include <sys/mman.h>
+	#include <sys/stat.h>
+#endif
 
 static void usage(void);
 #include "arg.h"
 
 #define __noreturn __attribute__((noreturn))
+
+//#define DEBUG
 
 #ifdef DEBUG
 #define dbg_printf printf
@@ -37,6 +43,7 @@ typedef uint32_t u32;
 
 #define MAX_PACKET_SIZE 64
 #define SECTOR_SIZE  1024
+#define SECTOR_SIZE_CH56X  256
 
 /*
  *  All readable and writable registers.
@@ -70,13 +77,15 @@ typedef uint32_t u32;
 #define CMD_READ_OTP	0xc4
 #define CMD_SET_BAUD	0xc5
 
+#define BTVER_02_70	(0x00020700)
+
 #define ISP_VID 0x4348
 #define ISP_PID 0x55e0
 #define ISP_EP_OUT (2 | LIBUSB_ENDPOINT_OUT)
 #define ISP_EP_IN (2 | LIBUSB_ENDPOINT_IN)
 
 __noreturn static void die(const char *errstr, ...);
-__noreturn static void version(void);
+__noreturn static void version_print(void);
 __noreturn static void usage(void);
 
 static void usb_init(void);
@@ -93,6 +102,80 @@ libusb_context *usb;
 libusb_device_handle *dev;
 unsigned int interface;
 unsigned int kernel;
+
+static u32 bootloader_ver = 0; /* Bootloader Version */
+static u32 device_ch56x = 0;
+
+#define CURR_TIME_SIZE (40)
+char currTime[CURR_TIME_SIZE+1] = "";
+struct timeval start_tv;
+struct timeval curr_tv;
+
+float TimevalDiff(const struct timeval *a, const struct timeval *b)
+{
+	return (a->tv_sec - b->tv_sec) + 1e-6f * (a->tv_usec - b->tv_usec);
+}
+
+void get_CurrentTime(char* date_time_ms, int date_time_ms_max_size)
+{
+	#define CURRENT_TIME_SIZE (30)
+	char currentTime[CURRENT_TIME_SIZE+1] = "";
+	time_t rawtime;
+	struct tm * timeinfo;
+  
+	struct timeval curTime;
+	gettimeofday(&curTime, NULL);
+	int milli = curTime.tv_usec / 1000;
+	
+	time (&rawtime);
+	timeinfo = localtime(&rawtime);
+	
+	strftime(currentTime, CURRENT_TIME_SIZE, "%Y-%m-%d %H:%M:%S", timeinfo);
+	snprintf(date_time_ms, (date_time_ms_max_size-1), "%s.%03d", currentTime, milli);
+}
+
+void printf_timing(const char *fmt, ...)
+{
+	va_list args;
+
+	gettimeofday(&curr_tv, NULL);
+	get_CurrentTime(currTime, CURR_TIME_SIZE);
+	printf("%s (%05.03f s) ", currTime, TimevalDiff(&curr_tv, &start_tv));
+
+	va_start(args, fmt);
+	vprintf(fmt, args);
+	va_end(args);
+}
+
+void print_hex(uint8_t* data, uint8_t size)
+{
+	uint8_t ascii[17];
+	uint8_t i, j;
+	ascii[16] = '\0';
+	for (i = 0; i < size; ++i) {
+		printf("%02X ", data[i]);
+		if (data[i] >= 0x20 && data[i] <= 0x7f) {
+			ascii[i % 16] = data[i];
+		} else {
+			ascii[i % 16] = '.';
+		}
+		if ((i+1) % 8 == 0 || i+1 == size) {
+			printf(" ");
+			if ((i+1) % 16 == 0) {
+				printf("|  %s \r\n", ascii);
+			} else if (i+1 == size) {
+				ascii[(i+1) % 16] = '\0';
+				if ((i+1) % 16 <= 8) {
+					printf(" ");
+				}
+				for (j = (i+1) % 16; j < 16; ++j) {
+					printf("   ");
+				}
+				printf("|  %s \r\n", ascii);
+			}
+		}
+	}
+}
 
 static void
 die(const char *errstr, ...)
@@ -148,10 +231,10 @@ isp_send_cmd(u8 cmd, u16 len, u8 *data)
 	if (len != 0)
 		memcpy(&buf[3], data, len);
 
-	dbg_printf("isp send cmd %.2x len %.2x%.2x : ", buf[0], buf[2], buf[1]);
-	for (int i = 0; i < len; i++)
-		dbg_printf("%.2x", data[i]);
-	dbg_printf("\n");
+	dbg_printf("isp send cmd %.2x len %.2x%.2x:\n", buf[0], buf[2], buf[1]);
+#ifdef DEBUG
+	print_hex(data, len);
+#endif
 
 	return usb_send(len + 3, buf);
 }
@@ -184,11 +267,11 @@ isp_recv_cmd(u8 cmd, u16 len, u8 *data)
 	if (data != NULL)
 		memcpy(data, buf + 4, len);
 
-	dbg_printf("isp recv cmd %.2x status %.2x len %.2x%.2x : ", buf[0], buf[1], buf[3], buf[2]);
-	for (int i = 0; i < len; i++)
-		dbg_printf("%.2x", data[i]);
-	dbg_printf("\n");
+	dbg_printf("isp recv cmd %.2x status %.2x len %.2x%.2x:\n", buf[0], buf[1], buf[3], buf[2]);
 
+#ifdef DEBUG
+	print_hex(data, len);
+#endif
 	return got;
 }
 
@@ -200,6 +283,11 @@ cmd_identify(u8 *dev_id, u8 *dev_type)
 
 	buf[0] = 0; // dev_id
 	buf[1] = 0; // dev_type
+	
+#ifdef DEBUG
+	printf("cmd_identify isp_send_cmd()/isp_recv_cmd()\n");
+#endif
+	
 	/* do not send the terminating nul byte, hence sizeof(buf) - 1 */
 	isp_send_cmd(CMD_IDENTIFY, sizeof(buf) - 1, buf);
 	isp_recv_cmd(CMD_IDENTIFY, sizeof(ids), ids);
@@ -208,6 +296,10 @@ cmd_identify(u8 *dev_id, u8 *dev_type)
 		*dev_id = ids[0];
 	if (dev_type)
 		*dev_type = ids[1];
+
+#ifdef DEBUG
+	printf("\n");
+#endif	
 }
 
 static void
@@ -215,20 +307,35 @@ cmd_isp_key(size_t len, u8 *key, u8 *sum)
 {
 	u8 rsp[2];
 
+#ifdef DEBUG
+	printf("cmd_isp_key isp_send_cmd()/isp_recv_cmd()\n");
+#endif
+
 	isp_send_cmd(CMD_ISP_KEY, len, key);
 	isp_recv_cmd(CMD_ISP_KEY, sizeof(rsp), rsp);
 	if (sum)
 		*sum = rsp[0];
+	
+#ifdef DEBUG
+	printf("\n");
+#endif
 }
 
 static void
 cmd_isp_end(u8 reason)
 {
 	u8 buf[2];
+#ifdef DEBUG
+	printf("cmd_isp_end isp_send_cmd()/isp_recv_cmd()\n");
+#endif
 
 	isp_send_cmd(CMD_ISP_END, sizeof(reason), &reason);
 	if (reason == 0) /* the device is not expected to respond */
 		isp_recv_cmd(CMD_ISP_END, sizeof(buf), buf);
+
+#ifdef DEBUG
+	printf("\n");
+#endif
 }
 
 static void
@@ -291,11 +398,17 @@ cmd_verify(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 	isp_send_cmd(CMD_VERIFY, len + 5, unk);
 	isp_recv_cmd(CMD_VERIFY, sizeof(rsp), rsp);
 
-	if (rsp[0] != 0 || rsp[1] != 0)
-		die("Fail to verify chunk @ %#x error: %.2x %.2x\n", addr, rsp[0], rsp[1]);
-
+	if(bootloader_ver == BTVER_02_70)
+	{
+		if (rsp[1] != 0)
+			die("Fail to verify chunk @ %#x error(rsp[1] != 0): %.2x %.2x (len=%lld)\n", addr, rsp[0], rsp[1], len);
+	}
+	else
+	{
+		if (rsp[0] != 0 || rsp[1] != 0)
+			die("Fail to verify chunk @ %#x error: %.2x %.2x (len=%lld)\n", addr, rsp[0], rsp[1], len);		
+	}
 	return len;
-
 }
 
 static size_t
@@ -308,6 +421,9 @@ cmd_read_conf(u16 cfgmask, size_t len, u8 *cfg)
 
 	req[0] = (cfgmask >>  0) & 0xff;
 	req[1] = (cfgmask >>  8) & 0xff;
+#ifdef DEBUG
+	printf("cmd_read_conf isp_send_cmd()/isp_recv_cmd()\n");
+#endif
 
 	isp_send_cmd(CMD_READ_CONFIG, sizeof(req), req);
 	got = isp_recv_cmd(CMD_READ_CONFIG, sizeof(buf), buf);
@@ -322,10 +438,42 @@ cmd_read_conf(u16 cfgmask, size_t len, u8 *cfg)
 	return len;
 }
 
+static size_t
+cmd_read_conf_v2(u32* bootloader_ver, u8 *chk_sum)
+{
+	int i;
+	u8 buf[60];	
+	size_t len;
+	// READ_CFG_CMD_V2 = [0xa7, 0x02, 0x00, 0x1f, 0x00]
+	u8 cmd[] = { 0x1f, 0x00 }; /* Remove CMD + CMD Data Size 2x8bits */
+#ifdef DEBUG
+	printf("cmd_read_conf READ_CFG_CMD_V2 isp_send_cmd()/isp_recv_cmd()\n");
+#endif		
+	isp_send_cmd(CMD_READ_CONFIG, sizeof(cmd), cmd);
+	len = isp_recv_cmd(CMD_READ_CONFIG, (30-4), buf);
+
+	*chk_sum = 0;
+	for(i = 0; i < 8; i++)
+	{
+		*chk_sum = (*chk_sum + buf[(len-8)+i]) & 0xFF;
+	}
+
+	*bootloader_ver = (buf[14] << 24) + (buf[15] << 16) + (buf[16] << 8) + buf[17];
+#ifdef DEBUG	
+	printf("chk_sum=%02X\n", *chk_sum);	
+	printf("BTVER: V%d%d.%d%d (bootloader_ver=%08X)\n", buf[14], buf[15], buf[16], buf[17], *bootloader_ver);
+#endif
+	return len;
+}
+
 static void
 usb_init(void)
 {
 	int err;
+	const struct libusb_version* version;
+
+	version = libusb_get_version();
+	printf_timing("Using libusb v%d.%d.%d.%d\n", version->major, version->minor, version->micro, version->nano);
 
 	err = libusb_init(&usb);
 	if (err)
@@ -337,12 +485,13 @@ usb_init(void)
 		    strerror(errno));
 
 	kernel = libusb_kernel_driver_active(dev, 0);
-	if (kernel)
+	if (kernel == 1)
+	{
 		if (libusb_detach_kernel_driver(dev, 0))
 			die("Couldn't detach kernel driver!\n");
-
+	}
 	err = libusb_claim_interface(dev, 0);
-	if (err)
+	if (err < 0)
 		die("libusb_claim_interface: %s\n", libusb_strerror(err));
 }
 
@@ -385,44 +534,72 @@ isp_init(void)
 
 	/* get the device type and id */
 	cmd_identify(&dev_id, &dev_type);
+	if( (dev_id >= 0x65) && (dev_id <= 0x69))
+		device_ch56x = 1;
 
 	/* match the detected device */
-	for (i = 0; i < LEN(devices); i++) {
-		if (devices[i].type == dev_type && devices[i].id == dev_id) {
+	for (i = 0; i < LEN(devices); i++)
+	{
+		if (devices[i].type == dev_type && devices[i].id == dev_id)
+		{
 			dev_db = &devices[i];
 			break;
 		}
 	}
-	if (dev_db) {
-		printf("Found chip: %s [0x%.2x%.2x] Flash %dK\n", dev_db->name,
+	if (dev_db) 
+	{
+		printf_timing("Found chip: %s [0x%.2x%.2x] Flash %dK\n", dev_db->name,
 		       dev_type, dev_id, dev_db->flash_size / SZ_1K);
 	} else {
-		printf("Unknown chip: [0x%.2x%.2x]", dev_type, dev_id);
+		printf_timing("Unknown chip: [0x%.2x%.2x]", dev_type, dev_id);
 	}
 
 	/* get the device uid */
 	dev_uid_len = cmd_read_conf(CFG_MASK_UID, sizeof(dev_uid), dev_uid);
-	printf("chip uid: ");
+	printf_timing("Chip uid: ");
 	for (i = 0; i < dev_uid_len; i++)
 		printf("%.2x ", dev_uid[i]);
 	puts("");
+#ifdef DEBUG
+	printf("cmd_read_conf data:\n");
+	print_hex(dev_uid, sizeof(dev_uid));
+#endif
+	cmd_read_conf_v2(&bootloader_ver, &sum);
+	if(bootloader_ver == BTVER_02_70)
+	{
+		memset(xor_key, sum, sizeof(xor_key));
+		xor_key[7] = xor_key[0] + dev_id;
+#ifdef DEBUG
+		printf("xor_key data:\n");
+		print_hex(xor_key, sizeof(xor_key));
+#endif
+		/* send the isp key, the reply has a check sum of the xor_key used */
+		cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
 
-	/* initialize xor_key */
-	for (sum = 0, i = 0; i < dev_uid_len; i++)
-		sum += dev_uid[i];
-	memset(xor_key, sum, sizeof(xor_key));
-	xor_key[7] = xor_key[0] + dev_id;
+		if(rsp != 0)
+			die("failed set isp key, wrong checksum, got %x (exp 00)\n", rsp);
+	}else
+	{
+		/* initialize xor_key */
+		for (sum = 0, i = 0; i < dev_uid_len; i++)
+			sum += dev_uid[i];
+		memset(xor_key, sum, sizeof(xor_key));
+		xor_key[7] = xor_key[0] + dev_id;
+#ifdef DEBUG
+		printf("xor_key data:\n");
+		print_hex(xor_key, sizeof(xor_key));
+#endif
+		/* send the isp key, the reply has a check sum of the xor_key used */
+		cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
 
-	/* send the isp key, the reply has a check sum of the xor_key used */
-	cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
+		/* do the same on our side */
+		for (sum = 0, i = 0; i < sizeof(xor_key); i++)
+			sum += xor_key[i];
 
-	/* do the same on our side */
-	for (sum = 0, i = 0; i < sizeof(xor_key); i++)
-		sum += xor_key[i];
-
-	/* verify that we both are using the same xor_key (thanks to the checksum) */
-	if (rsp != sum)
-		die("failed set isp key, wrong checksum, got %x (exp %x)\n", rsp, sum);
+		/* verify that we both are using the same xor_key (thanks to the checksum) */
+		if (rsp != sum)
+			die("failed set isp key, wrong checksum, got %x (exp %x)\n", rsp, sum);
+	}
 }
 
 static void
@@ -435,7 +612,7 @@ progress_bar(const char *act, size_t current, size_t total)
 
 	if (!do_progress)
 		return;
-	printf("\r[%.*s%.*s] %s %ld/%ld", n, f, l - n, e, act, current, total);
+	printf_timing("\r[%.*s%.*s] %s %lld/%lld", n, f, l - n, e, act, current, total);
 	if (current == total)
 		puts("");
 	fflush(stdout);
@@ -444,14 +621,30 @@ progress_bar(const char *act, size_t current, size_t total)
 static void
 isp_flash(size_t size, u8 *data)
 {
-	u16 nr_sectors = ALIGN(size, SECTOR_SIZE) / SECTOR_SIZE;
+	u32 nr_sectors;
+	u32 max_sectors;
 	size_t off = 0;
 	size_t rem = size;
 	size_t len;
 
-	nr_sectors = MIN(nr_sectors, 8);
-	cmd_erase(nr_sectors);
+	if(device_ch56x)
+	{	
+		nr_sectors = (ALIGN(size, SECTOR_SIZE_CH56X) / SECTOR_SIZE_CH56X);
+		max_sectors = (dev_db->flash_size / SECTOR_SIZE_CH56X);
+	}
+	else
+	{
+		nr_sectors = (ALIGN(size, SECTOR_SIZE) / SECTOR_SIZE);
+		max_sectors = (dev_db->flash_size / SECTOR_SIZE);
+	}
 
+	printf_timing("isp_flash start (max sectors=%d)\n", max_sectors);
+	nr_sectors = MIN(nr_sectors, max_sectors);
+	printf_timing("cmd_erase %d sectors start\n", nr_sectors);
+	cmd_erase(nr_sectors);
+	printf_timing("cmd_erase end\n");
+
+	printf_timing("cmd_program start\n");
 	while (off < size) {
 		progress_bar("write", off, size);
 
@@ -461,6 +654,8 @@ isp_flash(size_t size, u8 *data)
 	}
 	cmd_program(off, 0, NULL, xor_key);
 	progress_bar("write", size, size);
+	printf_timing("cmd_program end with success\n");
+	printf_timing("isp_flash end\n");
 }
 
 static void
@@ -470,6 +665,7 @@ isp_verify(size_t size, u8 *data)
 	size_t rem = size;
 	size_t len;
 
+	printf_timing("isp_verify start\n");
 	while (off < size) {
 		progress_bar("verify", off, size);
 
@@ -478,6 +674,7 @@ isp_verify(size_t size, u8 *data)
 		rem -= len;
 	}
 	progress_bar("verify", size, size);
+	printf_timing("isp_verify end with success\n");
 }
 
 static void
@@ -487,31 +684,50 @@ isp_fini(void)
 		cmd_isp_end(1);
 }
 
+static size_t
+f_size(FILE *fp)
+{
+    size_t prev=ftell(fp);
+    fseek(fp, 0L, SEEK_END);
+    size_t sz=ftell(fp);
+    fseek(fp,prev,SEEK_SET); //go back to where we were
+    return sz;
+}
+
 static void
 flash_file(const char *name)
 {
-	struct stat sb;
 	size_t size;
 	void *bin;
-	int fd;
+	FILE *fp;
+	size_t ret;
 
-	fd = open(name, O_RDONLY);
-	if (fd == -1)
+	fp = fopen(name, "rb");
+	if (fp == NULL)
 		die("%s: %s\n", name, strerror(errno));
-	if (fstat(fd, &sb) < 0)
-		die("fstat: %s\n", strerror(errno));
 
-	size = ALIGN(sb.st_size, 64);
-	bin = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
-	if (bin == NULL)
-		die("mmap: %s\n", strerror(errno));
-
+	size = f_size(fp);
+	bin = malloc(size);	
+	if (bin == NULL) 
+	{
+		fclose(fp);
+		die("flash_file Memory error\n");
+	}
+	// Copy the file into the buffer bin
+	ret = fread(bin, 1, size, fp);
+	if (ret != size)
+	{
+		fclose(fp);		
+		die("flash_file reading error\n");
+	}
+	printf_timing("Flash file: %s\n", name);	
+	printf_timing("File length: %lld\n", size);
 	isp_flash(size, bin);
 	if (do_verify)
 		isp_verify(size, bin);
 
-	close(fd);
-	munmap(bin, size);
+	free(bin);
+	fclose(fp);
 }
 
 char *argv0;
@@ -525,7 +741,7 @@ usage(void)
 }
 
 static void
-version(void)
+version_print(void)
 {
 	printf("%s %s\n", argv0, VERSION);
 	die("");
@@ -534,7 +750,6 @@ version(void)
 int
 main(int argc, char *argv[])
 {
-
 	argv0 = argv[0];
 
 	ARGBEGIN {
@@ -548,11 +763,14 @@ main(int argc, char *argv[])
 		do_verify = 1;
 		break;
 	case 'V':
-		version();
+		version_print();
 	default:
 		usage();
 	} ARGEND;
 
+	gettimeofday(&start_tv, NULL);
+	get_CurrentTime(currTime, CURR_TIME_SIZE);
+	printf("Start time %s\n", currTime);
 	usb_init();
 	isp_init();
 
@@ -566,6 +784,9 @@ main(int argc, char *argv[])
 
 	isp_fini();
 	usb_fini();
+	gettimeofday(&curr_tv, NULL);
+	get_CurrentTime(currTime, CURR_TIME_SIZE);
+	printf("End time %s (Duration %05.03f s)\n", currTime, TimevalDiff(&curr_tv, &start_tv));
 
 	return 0;
 }
