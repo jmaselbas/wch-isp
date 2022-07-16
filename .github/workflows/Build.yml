@@ -20,7 +20,6 @@ jobs:
       id: id_version
       shell: bash
       run: |
-         cd scpi
          app_major_minor_patch=`grep -oP '(?<=VERSION = )[0-9.]+' Makefile`
          echo "::set-output name=app_version::v$app_major_minor_patch-${{steps.id_date.outputs.timestamp}}"
     - name: Build app
