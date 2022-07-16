@@ -12,7 +12,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Install pkg-config libusb-1.0-0-dev
-      run: sudo apt-get pkg-config libusb-1.0-0-dev
+      run: sudo apt-get install pkg-config libusb-1.0-0-dev
 
     - name: Get build timestamp
       id: id_date
