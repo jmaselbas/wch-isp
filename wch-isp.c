@@ -452,7 +452,7 @@ progress_bar(const char *act, size_t current, size_t total)
 static void
 isp_flash(size_t size, u8 *data)
 {
-	u16 nr_sectors = ALIGN(size, SECTOR_SIZE) / SECTOR_SIZE;
+	u32 nr_sectors = ALIGN(size, SECTOR_SIZE) / SECTOR_SIZE;
 	size_t off = 0;
 	size_t rem = size;
 	size_t len;
