@@ -48,7 +48,7 @@ jobs:
       with:
           msystem: MINGW64
           update: true
-          install: pkg-config make mingw-w64-x86_64-toolchain mingw-w64-x86_64-libusb
+          install: mingw-w64-x86_64-toolchain mingw-w64-x86_64-libusb
 
     - name: Get build timestamp
       id: id_date
