@@ -337,7 +337,9 @@ usb_init(void)
 		    strerror(errno));
 
 	kernel = libusb_kernel_driver_active(dev, 0);
-	if (kernel)
+	if (kernel < 0)
+		die("libusb_kernel_driver_active: %s\n", libusb_strerror(err));
+	if (kernel == 1)
 		if (libusb_detach_kernel_driver(dev, 0))
 			die("Couldn't detach kernel driver!\n");
 
@@ -356,7 +358,7 @@ usb_fini(void)
 	if (err)
 		die("libusb_release_interface: %s\n", libusb_strerror(err));
 
-	if (kernel)
+	if (kernel == 1)
 		libusb_attach_kernel_driver(dev, 0);
 
 	if (usb)
