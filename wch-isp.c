@@ -12,11 +12,6 @@
 
 #include <fcntl.h>
 
-#ifndef __WIN32__
-	#include <sys/mman.h>
-	#include <sys/stat.h>
-#endif
-
 static void usage(void);
 #include "arg.h"
 
@@ -398,16 +393,9 @@ cmd_verify(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 	isp_send_cmd(CMD_VERIFY, len + 5, unk);
 	isp_recv_cmd(CMD_VERIFY, sizeof(rsp), rsp);
 
-	if(bootloader_ver == BTVER_02_70)
-	{
-		if (rsp[1] != 0)
-			die("Fail to verify chunk @ %#x error(rsp[1] != 0): %.2x %.2x (len=%lld)\n", addr, rsp[0], rsp[1], len);
-	}
-	else
-	{
-		if (rsp[0] != 0 || rsp[1] != 0)
-			die("Fail to verify chunk @ %#x error: %.2x %.2x (len=%lld)\n", addr, rsp[0], rsp[1], len);		
-	}
+	if (rsp[0] != 0 || rsp[1] != 0)
+		die("Fail to verify chunk @ %#x error: %.2x %.2x (len=%lld)\n", addr, rsp[0], rsp[1], len);		
+
 	return len;
 }
 
@@ -698,6 +686,7 @@ static void
 flash_file(const char *name)
 {
 	size_t size;
+	size_t size_align;
 	void *bin;
 	FILE *fp;
 	size_t ret;
@@ -707,12 +696,14 @@ flash_file(const char *name)
 		die("%s: %s\n", name, strerror(errno));
 
 	size = f_size(fp);
-	bin = malloc(size);	
+	size_align = ALIGN(size, 64);
+	bin = malloc(size_align);
 	if (bin == NULL) 
 	{
 		fclose(fp);
 		die("flash_file Memory error\n");
 	}
+	memset(bin, 0, size_align);
 	// Copy the file into the buffer bin
 	ret = fread(bin, 1, size, fp);
 	if (ret != size)
@@ -721,10 +712,10 @@ flash_file(const char *name)
 		die("flash_file reading error\n");
 	}
 	printf_timing("Flash file: %s\n", name);	
-	printf_timing("File length: %lld\n", size);
-	isp_flash(size, bin);
+	printf_timing("File length: %lld (size aligned: %lld)\n", size, size_align);
+	isp_flash(size_align, bin);
 	if (do_verify)
-		isp_verify(size, bin);
+		isp_verify(size_align, bin);
 
 	free(bin);
 	fclose(fp);
