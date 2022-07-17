@@ -1,4 +1,4 @@
-name: Build CI
+name: Build
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
       with:
           msystem: MINGW64
           update: true
-          install: mingw-w64-x86_64-toolchain mingw-w64-x86_64-libusb
+          install: mingw-w64-x86_64-make mingw-w64-x86_64-pkgconf mingw-w64-x86_64-gcc mingw-w64-x86_64-libusb
 
     - name: Get build timestamp
       id: id_date
