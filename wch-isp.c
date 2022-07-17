@@ -384,6 +384,14 @@ db_flash_size(void)
 	return -1;
 }
 
+static size_t
+db_flash_sector_size(void)
+{
+	if (dev_db && dev_db->flash_sector_size > 0)
+		return dev_db->flash_sector_size;
+	return SECTOR_SIZE;
+}
+
 static void
 isp_init(void)
 {
@@ -452,7 +460,8 @@ progress_bar(const char *act, size_t current, size_t total)
 static void
 isp_flash(size_t size, u8 *data)
 {
-	u32 nr_sectors = ALIGN(size, SECTOR_SIZE) / SECTOR_SIZE;
+	size_t sector_size = db_flash_sector_size();
+	u32 nr_sectors = ALIGN(size, sector_size) / sector_size;
 	size_t off = 0;
 	size_t rem = size;
 	size_t len;
