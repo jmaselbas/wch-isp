@@ -376,6 +376,14 @@ static int do_progress;
 static int do_reset;
 static int do_verify;
 
+static size_t
+db_flash_size(void)
+{
+	if (dev_db && dev_db->flash_size > 0)
+		return dev_db->flash_size;
+	return -1;
+}
+
 static void
 isp_init(void)
 {
@@ -502,6 +510,9 @@ flash_file(const char *name)
 		die("fstat: %s\n", strerror(errno));
 
 	size = ALIGN(sb.st_size, 64);
+	if (size > db_flash_size())
+		die("%s: file too big, flash size is %d", name, db_flash_size());
+
 	bin = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (bin == NULL)
 		die("mmap: %s\n", strerror(errno));
