@@ -368,6 +368,7 @@ usb_fini(void)
 static u8 dev_id;
 static u8 dev_type;
 static u8 dev_uid[8];
+static u32 dev_btver;
 static size_t dev_uid_len;
 static u8 isp_key[30]; /* all zero key */
 static u8 xor_key[8];
@@ -398,6 +399,7 @@ static void
 isp_init(void)
 {
 	size_t i;
+	u8 ver[4];
 	u8 sum;
 	u8 rsp;
 
@@ -424,6 +426,13 @@ isp_init(void)
 	for (i = 0; i < dev_uid_len; i++)
 		printf("%.2x ", dev_uid[i]);
 	puts("");
+
+	/* get the bootloader version */
+	cmd_read_conf(CFG_MASK_BTVER, sizeof(ver), ver);
+	/* bootloader version seems to be two bigendian 16bits numbers */
+	dev_btver = ((ver[0] << 24 | ver[1]) << 16) /* major */
+		    |(ver[2] <<  8 | ver[3]);       /* minor */
+	printf("bootloader: v%x.%.4x\n", dev_btver >> 16, dev_btver & 0xffff);
 
 	/* initialize xor_key */
 	for (sum = 0, i = 0; i < dev_uid_len; i++)
