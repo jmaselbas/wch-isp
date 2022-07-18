@@ -93,8 +93,8 @@ static void isp_fini(void);
 static size_t isp_send_cmd(u8 cmd, u16 len, u8 *data);
 static size_t isp_recv_cmd(u8 cmd, u16 len, u8 *data);
 
-libusb_context *usb;
-libusb_device_handle *dev;
+libusb_context *usb = NULL;
+libusb_device_handle *dev = NULL;
 unsigned int interface;
 unsigned int kernel;
 
@@ -105,6 +105,9 @@ static u32 device_ch56x = 0;
 char currTime[CURR_TIME_SIZE+1] = "";
 struct timeval start_tv;
 struct timeval curr_tv;
+
+void *flash_file_bin = NULL;
+FILE *flash_file_fp = NULL;
 
 float TimevalDiff(const struct timeval *a, const struct timeval *b)
 {
@@ -117,14 +120,14 @@ void get_CurrentTime(char* date_time_ms, int date_time_ms_max_size)
 	char currentTime[CURRENT_TIME_SIZE+1] = "";
 	time_t rawtime;
 	struct tm * timeinfo;
-  
+
 	struct timeval curTime;
 	gettimeofday(&curTime, NULL);
 	int milli = curTime.tv_usec / 1000;
-	
+
 	time (&rawtime);
 	timeinfo = localtime(&rawtime);
-	
+
 	strftime(currentTime, CURRENT_TIME_SIZE, "%Y-%m-%d %H:%M:%S", timeinfo);
 	snprintf(date_time_ms, (date_time_ms_max_size-1), "%s.%03d", currentTime, milli);
 }
@@ -278,11 +281,11 @@ cmd_identify(u8 *dev_id, u8 *dev_type)
 
 	buf[0] = 0; // dev_id
 	buf[1] = 0; // dev_type
-	
+
 #ifdef DEBUG
 	printf("cmd_identify isp_send_cmd()/isp_recv_cmd()\n");
 #endif
-	
+
 	/* do not send the terminating nul byte, hence sizeof(buf) - 1 */
 	isp_send_cmd(CMD_IDENTIFY, sizeof(buf) - 1, buf);
 	isp_recv_cmd(CMD_IDENTIFY, sizeof(ids), ids);
@@ -294,7 +297,7 @@ cmd_identify(u8 *dev_id, u8 *dev_type)
 
 #ifdef DEBUG
 	printf("\n");
-#endif	
+#endif
 }
 
 static void
@@ -310,7 +313,7 @@ cmd_isp_key(size_t len, u8 *key, u8 *sum)
 	isp_recv_cmd(CMD_ISP_KEY, sizeof(rsp), rsp);
 	if (sum)
 		*sum = rsp[0];
-	
+
 #ifdef DEBUG
 	printf("\n");
 #endif
@@ -394,7 +397,7 @@ cmd_verify(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 	isp_recv_cmd(CMD_VERIFY, sizeof(rsp), rsp);
 
 	if (rsp[0] != 0 || rsp[1] != 0)
-		die("Fail to verify chunk @ %#x error: %.2x %.2x (len=%lld)\n", addr, rsp[0], rsp[1], len);		
+		die("Fail to verify chunk @ %#x error: %.2x %.2x (len=%lld)\n", addr, rsp[0], rsp[1], len);
 
 	return len;
 }
@@ -427,28 +430,20 @@ cmd_read_conf(u16 cfgmask, size_t len, u8 *cfg)
 }
 
 static size_t
-cmd_read_conf_v2(u32* bootloader_ver, u8 *chk_sum)
+cmd_read_conf_v2(u32* bootloader_ver)
 {
-	int i;
-	u8 buf[60];	
+	u8 buf[60];
 	size_t len;
 	// READ_CFG_CMD_V2 = [0xa7, 0x02, 0x00, 0x1f, 0x00]
 	u8 cmd[] = { 0x1f, 0x00 }; /* Remove CMD + CMD Data Size 2x8bits */
 #ifdef DEBUG
 	printf("cmd_read_conf READ_CFG_CMD_V2 isp_send_cmd()/isp_recv_cmd()\n");
-#endif		
+#endif
 	isp_send_cmd(CMD_READ_CONFIG, sizeof(cmd), cmd);
 	len = isp_recv_cmd(CMD_READ_CONFIG, (30-4), buf);
 
-	*chk_sum = 0;
-	for(i = 0; i < 8; i++)
-	{
-		*chk_sum = (*chk_sum + buf[(len-8)+i]) & 0xFF;
-	}
-
 	*bootloader_ver = (buf[14] << 24) + (buf[15] << 16) + (buf[16] << 8) + buf[17];
-#ifdef DEBUG	
-	printf("chk_sum=%02X\n", *chk_sum);	
+#ifdef DEBUG
 	printf("BTVER: V%d%d.%d%d (bootloader_ver=%08X)\n", buf[14], buf[15], buf[16], buf[17], *bootloader_ver);
 #endif
 	return len;
@@ -471,15 +466,16 @@ usb_init(void)
 	if (!dev)
 		die("Fail to open device %4x:%4x %s\n", ISP_VID, ISP_PID,
 		    strerror(errno));
-
+#ifdef __linux__
 	kernel = libusb_kernel_driver_active(dev, 0);
 	if (kernel == 1)
 	{
 		if (libusb_detach_kernel_driver(dev, 0))
 			die("Couldn't detach kernel driver!\n");
 	}
+#endif
 	err = libusb_claim_interface(dev, 0);
-	if (err < 0)
+	if (err)
 		die("libusb_claim_interface: %s\n", libusb_strerror(err));
 }
 
@@ -487,15 +483,20 @@ static void
 usb_fini(void)
 {
 	int err = 0;
-
+	if(flash_file_fp)
+		fclose(flash_file_fp);
+	if(flash_file_bin)
+		free(flash_file_bin);	
 	if (dev)
 		err = libusb_release_interface(dev, 0);
 	if (err)
 		die("libusb_release_interface: %s\n", libusb_strerror(err));
-
-	if (kernel)
+#ifdef __linux__
+	if (kernel == 1)
 		libusb_attach_kernel_driver(dev, 0);
-
+#endif
+	if(dev)
+		libusb_close(dev);
 	if (usb)
 		libusb_exit(usb);
 }
@@ -534,7 +535,7 @@ isp_init(void)
 			break;
 		}
 	}
-	if (dev_db) 
+	if (dev_db)
 	{
 		printf_timing("Found chip: %s [0x%.2x%.2x] Flash %dK\n", dev_db->name,
 		       dev_type, dev_id, dev_db->flash_size / SZ_1K);
@@ -548,19 +549,24 @@ isp_init(void)
 	for (i = 0; i < dev_uid_len; i++)
 		printf("%.2x ", dev_uid[i]);
 	puts("");
+
 #ifdef DEBUG
 	printf("cmd_read_conf data:\n");
 	print_hex(dev_uid, sizeof(dev_uid));
 #endif
-	cmd_read_conf_v2(&bootloader_ver, &sum);
+	/* initialize xor_key */
+	for (sum = 0, i = 0; i < dev_uid_len; i++)
+		sum += dev_uid[i];
+	memset(xor_key, sum, sizeof(xor_key));
+	xor_key[7] = xor_key[0] + dev_id;
+#ifdef DEBUG
+	printf("xor_key data:\n");
+	print_hex(xor_key, sizeof(xor_key));
+#endif
+
+	cmd_read_conf_v2(&bootloader_ver);
 	if(bootloader_ver == BTVER_02_70)
 	{
-		memset(xor_key, sum, sizeof(xor_key));
-		xor_key[7] = xor_key[0] + dev_id;
-#ifdef DEBUG
-		printf("xor_key data:\n");
-		print_hex(xor_key, sizeof(xor_key));
-#endif
 		/* send the isp key, the reply has a check sum of the xor_key used */
 		cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
 
@@ -568,15 +574,6 @@ isp_init(void)
 			die("failed set isp key, wrong checksum, got %x (exp 00)\n", rsp);
 	}else
 	{
-		/* initialize xor_key */
-		for (sum = 0, i = 0; i < dev_uid_len; i++)
-			sum += dev_uid[i];
-		memset(xor_key, sum, sizeof(xor_key));
-		xor_key[7] = xor_key[0] + dev_id;
-#ifdef DEBUG
-		printf("xor_key data:\n");
-		print_hex(xor_key, sizeof(xor_key));
-#endif
 		/* send the isp key, the reply has a check sum of the xor_key used */
 		cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
 
@@ -616,7 +613,7 @@ isp_flash(size_t size, u8 *data)
 	size_t len;
 
 	if(device_ch56x)
-	{	
+	{
 		nr_sectors = (ALIGN(size, SECTOR_SIZE_CH56X) / SECTOR_SIZE_CH56X);
 		max_sectors = (dev_db->flash_size / SECTOR_SIZE_CH56X);
 	}
@@ -687,38 +684,33 @@ flash_file(const char *name)
 {
 	size_t size;
 	size_t size_align;
-	void *bin;
-	FILE *fp;
 	size_t ret;
 
-	fp = fopen(name, "rb");
-	if (fp == NULL)
+	flash_file_fp = fopen(name, "rb");
+	if (flash_file_fp == NULL)
 		die("%s: %s\n", name, strerror(errno));
 
-	size = f_size(fp);
+	size = f_size(flash_file_fp);
 	size_align = ALIGN(size, 64);
-	bin = malloc(size_align);
-	if (bin == NULL) 
+	flash_file_bin = malloc(size_align);
+	if (flash_file_bin == NULL)
 	{
-		fclose(fp);
 		die("flash_file Memory error\n");
 	}
-	memset(bin, 0, size_align);
-	// Copy the file into the buffer bin
-	ret = fread(bin, 1, size, fp);
+	memset(flash_file_bin, 0, size_align);
+	// Copy the file into the buffer flash_file_bin
+	ret = fread(flash_file_bin, 1, size, flash_file_fp);
 	if (ret != size)
 	{
-		fclose(fp);		
 		die("flash_file reading error\n");
 	}
-	printf_timing("Flash file: %s\n", name);	
+	printf_timing("Flash file: %s\n", name);
 	printf_timing("File length: %lld (size aligned: %lld)\n", size, size_align);
-	isp_flash(size_align, bin);
+	isp_flash(size_align, flash_file_bin);
 	if (do_verify)
-		isp_verify(size_align, bin);
+		isp_verify(size_align, flash_file_bin);
 
-	free(bin);
-	fclose(fp);
+	/* Note flash_file_fp & flash_file_bin handles are closed/freed by usb_fini() */
 }
 
 char *argv0;

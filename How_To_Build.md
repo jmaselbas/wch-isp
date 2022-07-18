@@ -4,7 +4,7 @@ GitHub Workflows / CI Build is available on [Build.yml](.github/workflows/Build.
 
 ###  GNU/Linux Ubuntu 20.04 LTS
 #### Prerequisites
-`sudo apt install pkg-config gcc libusb-1.0-0-dev`
+`sudo apt-get install gcc pkg-config libusb-1.0-0-dev`
 #### Automatic build (using Makefile) 
 `make`
 
@@ -13,7 +13,7 @@ GitHub Workflows / CI Build is available on [Build.yml](.github/workflows/Build.
 - install MSYS2/mingw64 from https://www.msys2.org
 - Start mingw64 console
 - `pacman -Syu`
-- `pacman -S mingw-w64-x86_64-toolchain mingw-w64-x86_64-libusb`
+- `pacman -S mingw-w64-x86_64-make mingw-w64-x86_64-pkgconf mingw-w64-x86_64-gcc mingw-w64-x86_64-libusb`
 #### Automatic build (using Makefile)
 `ming32-make.exe`
 - Optional copy libusb-1.0.dll to same directory as the executable(if it is not in your path)
