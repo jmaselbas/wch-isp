@@ -295,7 +295,6 @@ cmd_verify(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 		die("Fail to verify chunk @ %#x error: %.2x %.2x\n", addr, rsp[0], rsp[1]);
 
 	return len;
-
 }
 
 static size_t
