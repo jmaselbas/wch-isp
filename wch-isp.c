@@ -336,7 +336,7 @@ usb_init(void)
 		    strerror(errno));
 
 	kernel = libusb_kernel_driver_active(dev, 0);
-	if (kernel < 0)
+	if (kernel < 0 && kernel != LIBUSB_ERROR_NOT_SUPPORTED)
 		die("libusb_kernel_driver_active: %s\n", libusb_strerror(err));
 	if (kernel == 1)
 		if (libusb_detach_kernel_driver(dev, 0))
