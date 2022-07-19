@@ -372,6 +372,9 @@ usb_fini(void)
 	if (kernel == 1)
 		libusb_attach_kernel_driver(dev, 0);
 
+	if (dev)
+		libusb_close(dev);
+
 	if (usb)
 		libusb_exit(usb);
 }
