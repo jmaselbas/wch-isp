@@ -38,6 +38,9 @@ typedef uint32_t u32;
 #define MAX_PACKET_SIZE 64
 #define SECTOR_SIZE  1024
 
+#define BTVER_2_6 0x0206
+#define BTVER_2_7 0x0207
+
 /*
  *  All readable and writable registers.
  *  - `RDPR`: Read Protection
@@ -445,16 +448,21 @@ isp_init(void)
 	memset(xor_key, sum, sizeof(xor_key));
 	xor_key[7] = xor_key[0] + dev_id;
 
-	/* send the isp key, the reply has a check sum of the xor_key used */
+	/* send the isp key */
 	cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
 
-	/* do the same on our side */
-	for (sum = 0, i = 0; i < sizeof(xor_key); i++)
-		sum += xor_key[i];
-
-	/* verify that we both are using the same xor_key (thanks to the checksum) */
+	if (dev_btver >= BTVER_2_7) {
+		/* bootloader version 2.7 (and maybe onward) simply send zero */
+		sum = 0;
+	} else {
+		/* bootloader version 2.6 (and maybe prior versions) send back
+		 * the a checksum of the xor_key. This response can be used to
+		 * make sure we are in sync. */
+		for (sum = 0, i = 0; i < sizeof(xor_key); i++)
+			sum += xor_key[i];
+	}
 	if (rsp != sum)
-		die("failed set isp key, wrong checksum, got %x (exp %x)\n", rsp, sum);
+		die("failed set isp key, wrong reply, got %x (exp %x)\n", rsp, sum);
 }
 
 static void
