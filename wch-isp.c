@@ -10,8 +10,6 @@
 #include <errno.h>
 #include <libusb.h>
 
-#include <fcntl.h>
-
 static void usage(void);
 #include "arg.h"
 
@@ -38,7 +36,9 @@ typedef uint32_t u32;
 
 #define MAX_PACKET_SIZE 64
 #define SECTOR_SIZE  1024
-#define SECTOR_SIZE_CH56X  256
+
+#define BTVER_2_6 0x0206
+#define BTVER_2_7 0x0207
 
 /*
  *  All readable and writable registers.
@@ -97,9 +97,6 @@ libusb_context *usb = NULL;
 libusb_device_handle *dev = NULL;
 unsigned int interface;
 unsigned int kernel;
-
-static u32 bootloader_ver = 0; /* Bootloader Version */
-static u32 device_ch56x = 0;
 
 #define CURR_TIME_SIZE (40)
 char currTime[CURR_TIME_SIZE+1] = "";
@@ -429,24 +426,17 @@ cmd_read_conf(u16 cfgmask, size_t len, u8 *cfg)
 	return len;
 }
 
-static size_t
-cmd_read_conf_v2(u32* bootloader_ver)
+static u16 read_btver(void)
 {
-	u8 buf[60];
-	size_t len;
-	// READ_CFG_CMD_V2 = [0xa7, 0x02, 0x00, 0x1f, 0x00]
-	u8 cmd[] = { 0x1f, 0x00 }; /* Remove CMD + CMD Data Size 2x8bits */
-#ifdef DEBUG
-	printf("cmd_read_conf READ_CFG_CMD_V2 isp_send_cmd()/isp_recv_cmd()\n");
-#endif
-	isp_send_cmd(CMD_READ_CONFIG, sizeof(cmd), cmd);
-	len = isp_recv_cmd(CMD_READ_CONFIG, (30-4), buf);
+	u8 buf[4];
 
-	*bootloader_ver = (buf[14] << 24) + (buf[15] << 16) + (buf[16] << 8) + buf[17];
 #ifdef DEBUG
-	printf("BTVER: V%d%d.%d%d (bootloader_ver=%08X)\n", buf[14], buf[15], buf[16], buf[17], *bootloader_ver);
+	printf("read_btver\n");
 #endif
-	return len;
+	/* format: [0x00, major, minor, 0x00] */
+	cmd_read_conf(CFG_MASK_BTVER, sizeof(buf), buf);
+
+	return (buf[1] << 8) | buf[2];
 }
 
 static void
@@ -490,7 +480,7 @@ usb_fini(void)
 	if (dev)
 		err = libusb_release_interface(dev, 0);
 	if (err)
-		die("libusb_release_interface: %s\n", libusb_strerror(err));
+		fprintf(stderr, "libusb_release_interface: err=%d %s\n", err, libusb_strerror(err));
 #ifdef __linux__
 	if (kernel == 1)
 		libusb_attach_kernel_driver(dev, 0);
@@ -504,6 +494,7 @@ usb_fini(void)
 static u8 dev_id;
 static u8 dev_type;
 static u8 dev_uid[8];
+static u16 dev_btver;
 static size_t dev_uid_len;
 static u8 isp_key[30]; /* all zero key */
 static u8 xor_key[8];
@@ -514,6 +505,22 @@ static int do_progress;
 static int do_reset;
 static int do_verify;
 
+static size_t
+db_flash_size(void)
+{
+	if (dev_db && dev_db->flash_size > 0)
+		return dev_db->flash_size;
+	return -1;
+}
+
+static size_t
+db_flash_sector_size(void)
+{
+	if (dev_db && dev_db->flash_sector_size > 0)
+		return dev_db->flash_sector_size;
+	return SECTOR_SIZE;
+}
+
 static void
 isp_init(void)
 {
@@ -523,8 +530,6 @@ isp_init(void)
 
 	/* get the device type and id */
 	cmd_identify(&dev_id, &dev_type);
-	if( (dev_id >= 0x65) && (dev_id <= 0x69))
-		device_ch56x = 1;
 
 	/* match the detected device */
 	for (i = 0; i < LEN(devices); i++)
@@ -547,44 +552,34 @@ isp_init(void)
 	dev_uid_len = cmd_read_conf(CFG_MASK_UID, sizeof(dev_uid), dev_uid);
 	printf_timing("Chip uid: ");
 	for (i = 0; i < dev_uid_len; i++)
-		printf("%.2x ", dev_uid[i]);
+		printf("%.2X ", dev_uid[i]);
 	puts("");
 
-#ifdef DEBUG
-	printf("cmd_read_conf data:\n");
-	print_hex(dev_uid, sizeof(dev_uid));
-#endif
+	/* get the bootloader version */
+	dev_btver = read_btver();
+	printf_timing("bootloader: v%d.%d\n", dev_btver >> 8, dev_btver & 0xff);
+
 	/* initialize xor_key */
 	for (sum = 0, i = 0; i < dev_uid_len; i++)
 		sum += dev_uid[i];
 	memset(xor_key, sum, sizeof(xor_key));
 	xor_key[7] = xor_key[0] + dev_id;
-#ifdef DEBUG
-	printf("xor_key data:\n");
-	print_hex(xor_key, sizeof(xor_key));
-#endif
 
-	cmd_read_conf_v2(&bootloader_ver);
-	if(bootloader_ver == BTVER_02_70)
-	{
-		/* send the isp key, the reply has a check sum of the xor_key used */
-		cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
+	/* send the isp key */
+	cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
 
-		if(rsp != 0)
-			die("failed set isp key, wrong checksum, got %x (exp 00)\n", rsp);
-	}else
-	{
-		/* send the isp key, the reply has a check sum of the xor_key used */
-		cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
-
-		/* do the same on our side */
+	if (dev_btver >= BTVER_2_7) {
+		/* bootloader version 2.7 (and maybe onward) simply send zero */
+		sum = 0;
+	} else {
+		/* bootloader version 2.6 (and maybe prior versions) send back
+		 * the a checksum of the xor_key. This response can be used to
+		 * make sure we are in sync. */
 		for (sum = 0, i = 0; i < sizeof(xor_key); i++)
 			sum += xor_key[i];
-
-		/* verify that we both are using the same xor_key (thanks to the checksum) */
-		if (rsp != sum)
-			die("failed set isp key, wrong checksum, got %x (exp %x)\n", rsp, sum);
 	}
+	if (rsp != sum)
+		die("failed set isp key, wrong reply, got %x (exp %x)\n", rsp, sum);
 }
 
 static void
@@ -606,22 +601,12 @@ progress_bar(const char *act, size_t current, size_t total)
 static void
 isp_flash(size_t size, u8 *data)
 {
-	u32 nr_sectors;
-	u32 max_sectors;
+	size_t sector_size = db_flash_sector_size();
+	u32 nr_sectors = ALIGN(size, sector_size) / sector_size;
+	u32 max_sectors =  dev_db->flash_size / sector_size;
 	size_t off = 0;
 	size_t rem = size;
 	size_t len;
-
-	if(device_ch56x)
-	{
-		nr_sectors = (ALIGN(size, SECTOR_SIZE_CH56X) / SECTOR_SIZE_CH56X);
-		max_sectors = (dev_db->flash_size / SECTOR_SIZE_CH56X);
-	}
-	else
-	{
-		nr_sectors = (ALIGN(size, SECTOR_SIZE) / SECTOR_SIZE);
-		max_sectors = (dev_db->flash_size / SECTOR_SIZE);
-	}
 
 	printf_timing("isp_flash start (max sectors=%d)\n", max_sectors);
 	nr_sectors = MIN(nr_sectors, max_sectors);
@@ -692,6 +677,9 @@ flash_file(const char *name)
 
 	size = f_size(flash_file_fp);
 	size_align = ALIGN(size, 64);
+	if (size_align > db_flash_size())
+		die("%s: file too big, flash size is %d", name, db_flash_size());
+
 	flash_file_bin = malloc(size_align);
 	if (flash_file_bin == NULL)
 	{
@@ -726,7 +714,7 @@ usage(void)
 static void
 version_print(void)
 {
-	printf("%s %s\n", argv0, VERSION);
+	printf("%s v%s\n", argv0, VERSION);
 	die("");
 }
 
@@ -751,6 +739,7 @@ main(int argc, char *argv[])
 		usage();
 	} ARGEND;
 
+	printf("%s v%s\n", argv0, VERSION);
 	gettimeofday(&start_tv, NULL);
 	get_CurrentTime(currTime, CURR_TIME_SIZE);
 	printf("Start time %s\n", currTime);

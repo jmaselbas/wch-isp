@@ -20,21 +20,22 @@ struct dev {
 	const char *name;
 	u32 flash_size;
 	u32 eeprom_size;
+	u32 flash_sector_size;
 };
 
 struct dev devices[] = {
 	/* type    id  name           flash    eeprom */
-	{ 0x10, 0x63, "CH563",        SZ_224K, SZ_28K },
-	{ 0x10, 0x42, "CH563",        SZ_224K, SZ_28K },
-	{ 0x10, 0x43, "CH563",        SZ_224K, SZ_28K },
-	{ 0x10, 0x44, "CH563",        SZ_224K, SZ_28K },
-	{ 0x10, 0x45, "CH563",        SZ_224K, SZ_28K },
+	{ 0x10, 0x63, "CH563",        SZ_224K, SZ_28K, .flash_sector_size = 256 },
+	{ 0x10, 0x42, "CH563",        SZ_224K, SZ_28K, .flash_sector_size = 256 },
+	{ 0x10, 0x43, "CH563",        SZ_224K, SZ_28K, .flash_sector_size = 256 },
+	{ 0x10, 0x44, "CH563",        SZ_224K, SZ_28K, .flash_sector_size = 256 },
+	{ 0x10, 0x45, "CH563",        SZ_224K, SZ_28K, .flash_sector_size = 256 },
 
-	{ 0x10, 0x65, "CH565",        SZ_448K, SZ_32K },
-	{ 0x10, 0x66, "CH566",        SZ_64K,  SZ_32K },
-	{ 0x10, 0x67, "CH567",        SZ_192K, SZ_32K },
-	{ 0x10, 0x68, "CH568",        SZ_192K, SZ_32K },
-	{ 0x10, 0x69, "CH569",        SZ_448K, SZ_32K },
+	{ 0x10, 0x65, "CH565",        SZ_448K, SZ_32K, .flash_sector_size = 256 },
+	{ 0x10, 0x66, "CH566",        SZ_64K,  SZ_32K, .flash_sector_size = 256 },
+	{ 0x10, 0x67, "CH567",        SZ_192K, SZ_32K, .flash_sector_size = 256 },
+	{ 0x10, 0x68, "CH568",        SZ_192K, SZ_32K, .flash_sector_size = 256 },
+	{ 0x10, 0x69, "CH569",        SZ_448K, SZ_32K, .flash_sector_size = 256 },
 
 	{ 0x11, 0x51, "CH551",        SZ_10K,  128 },
 	{ 0x11, 0x52, "CH552",        SZ_14K,  128 },
