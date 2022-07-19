@@ -368,8 +368,7 @@ usb_fini(void)
 	if (dev)
 		err = libusb_release_interface(dev, 0);
 	if (err)
-		die("libusb_release_interface: %s\n", libusb_strerror(err));
-
+		fprintf(stderr, "libusb_release_interface: %s\n", libusb_strerror(err));
 	if (kernel == 1)
 		libusb_attach_kernel_driver(dev, 0);
 
