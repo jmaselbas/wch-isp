@@ -9,10 +9,6 @@
 #include <errno.h>
 #include <libusb.h>
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-
 static void usage(void);
 #include "arg.h"
 
@@ -532,31 +528,43 @@ isp_fini(void)
 static void
 flash_file(const char *name)
 {
-	struct stat sb;
-	size_t size;
+	FILE *f;
+	size_t len, size;
 	void *bin;
-	int fd;
+	int ret;
 
-	fd = open(name, O_RDONLY);
-	if (fd == -1)
+	f = fopen(name, "r");
+	if (f == NULL)
 		die("%s: %s\n", name, strerror(errno));
-	if (fstat(fd, &sb) < 0)
-		die("fstat: %s\n", strerror(errno));
 
-	size = ALIGN(sb.st_size, 64);
+	ret = fseek(f, 0, SEEK_END);
+	if (ret == -1)
+		die("fseek: %s\n", strerror(errno));
+
+	len = ftell(f);
+	ret = fseek(f, 0, SEEK_SET);
+	if (ret == -1)
+		die("fseek: %s\n", strerror(errno));
+
+	/* binary image needs to be aligned to a 64 bytes boundary */
+	size = ALIGN(len, 64);
 	if (size > db_flash_size())
 		die("%s: file too big, flash size is %d", name, db_flash_size());
 
-	bin = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+	bin = calloc(1, size);
 	if (bin == NULL)
-		die("mmap: %s\n", strerror(errno));
+		die("calloc: %s\n", strerror(errno));
+
+	ret = fread(bin, len, 1, f);
+	if (ret != 1)
+		die("fread: %s\n", strerror(errno));
 
 	isp_flash(size, bin);
 	if (do_verify)
 		isp_verify(size, bin);
 
-	close(fd);
-	munmap(bin, size);
+	fclose(f);
+	free(bin);
 }
 
 char *argv0;
