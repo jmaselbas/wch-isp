@@ -492,7 +492,6 @@ isp_flash(size_t size, u8 *data)
 	size_t rem = size;
 	size_t len;
 
-	nr_sectors = MIN(nr_sectors, 8);
 	cmd_erase(nr_sectors);
 
 	while (off < size) {
