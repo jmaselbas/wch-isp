@@ -344,9 +344,12 @@ usb_init(void)
 		die("Fail to open device %4x:%4x %s\n", ISP_VID, ISP_PID,
 		    strerror(errno));
 
-	kernel = libusb_kernel_driver_active(dev, 0);
-	if (kernel < 0 && kernel != LIBUSB_ERROR_NOT_SUPPORTED)
+	err = libusb_kernel_driver_active(dev, 0);
+	if (err == LIBUSB_ERROR_NOT_SUPPORTED)
+		err = 0;
+	if (err < 0)
 		die("libusb_kernel_driver_active: %s\n", libusb_strerror(err));
+	kernel = err;
 	if (kernel == 1)
 		if (libusb_detach_kernel_driver(dev, 0))
 			die("Couldn't detach kernel driver!\n");
