@@ -4,10 +4,16 @@ VERSION = 0.0.1
 # Install paths
 PREFIX = /usr/local
 
+PKG_CONFIG = pkg-config
+
+# include and libs
+INCS = `$(PKG_CONFIG) --cflags libusb-1.0`
+LIBS = `$(PKG_CONFIG) --libs libusb-1.0`
+
 # Flags
 CPPFLAGS = -DVERSION=\"$(VERSION)\"
-CFLAGS = -Wall -O2 `pkg-config --cflags libusb-1.0`
-LDFLAGS = `pkg-config --libs libusb-1.0`
+CFLAGS = -Wall -O2 $(INCS)
+LDFLAGS = $(LIBS)
 
 SRC = wch-isp.c
 HDR = arg.h devices.h
