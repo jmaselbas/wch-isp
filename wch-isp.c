@@ -473,7 +473,7 @@ progress_bar(const char *act, size_t current, size_t total)
 
 	if (!do_progress)
 		return;
-	printf("\r[%.*s%.*s] %s %ld/%ld", n, f, l - n, e, act, current, total);
+	printf("\r[%.*s%.*s] %s %zu/%zu", n, f, l - n, e, act, current, total);
 	if (current == total)
 		puts("");
 	fflush(stdout);
