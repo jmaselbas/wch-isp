@@ -4,6 +4,11 @@ VERSION = 0.0.1
 # Install paths
 PREFIX = /usr/local
 
+ifneq ($(CROSS_COMPILE),)
+CC = $(CROSS_COMPILE)cc
+LD = $(CROSS_COMPILE)ld
+endif
+
 PKG_CONFIG = pkg-config
 
 # include and libs
