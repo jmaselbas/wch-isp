@@ -1,0 +1,2 @@
+# WCH ISP bootloader
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="4348", ATTRS{idProduct}=="55e0", GROUP="uucp", MODE="0666"

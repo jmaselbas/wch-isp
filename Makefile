@@ -24,7 +24,7 @@ SRC = wch-isp.c
 HDR = arg.h devices.h
 OBJ = $(SRC:.c=.o)
 BIN = wch-isp
-DISTFILES = $(SRC) $(HDR) Makefile
+DISTFILES = $(SRC) $(HDR) 50-wchisp.rules Makefile
 
 all: $(BIN)
 
