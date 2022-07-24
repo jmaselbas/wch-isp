@@ -3,6 +3,7 @@ VERSION = 0.1
 
 # Install paths
 PREFIX = /usr/local
+UDEVPREFIX = /etc/udev
 
 ifneq ($(CROSS_COMPILE),)
 CC = $(CROSS_COMPILE)cc
@@ -38,6 +39,10 @@ install:
 	cp -f $(BIN) $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/$(BIN)
 
+install-rules:
+	mkdir -p $(DESTDIR)$(UDEVPREFIX)/rules.d
+	cp -f 50-wchisp.rules $(DESTDIR)$(UDEVPREFIX)/rules.d
+
 uninstall:
 	rm -vf $(DESTDIR)$(PREFIX)/bin/$(BIN)
 
@@ -51,4 +56,4 @@ dist:
 clean:
 	rm -f $(OBJ) $(BIN)
 
-.PHONY: all install uninstall dist clean
+.PHONY: all install install-rules uninstall dist clean
