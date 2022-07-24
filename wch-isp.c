@@ -589,7 +589,8 @@ static void
 usage(void)
 {
 	printf("usage: %s [-Vprv] COMMAND [ARG ...]\n", argv0);
-	printf("       %s [-Vprv] flash FILE\n", argv0);
+	printf("       %s [-Vprv] [flash|write] FILE\n", argv0);
+
 	die("");
 }
 
@@ -627,9 +628,11 @@ main(int argc, char *argv[])
 
 	if (argc < 1)
 		die("missing command\n");
-	if (strcmp(argv[0], "flash") == 0) {
+
+	if ((strcmp(argv[0], "flash") == 0) ||
+	    (strcmp(argv[0], "write") == 0)) {
 		if (argc < 2)
-			die("flash: missing file\n");
+			die("%s: missing file\n", argv[0]);
 		write_flash(argv[1]);
 	}
 
