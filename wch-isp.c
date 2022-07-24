@@ -529,7 +529,7 @@ isp_fini(void)
 }
 
 static void
-flash_file(const char *name)
+file_read_all(const char *name, size_t *size_p, void **bin_p)
 {
 	FILE *f;
 	size_t len, size;
@@ -562,11 +562,24 @@ flash_file(const char *name)
 	if (ret != 1)
 		die("fread: %s\n", strerror(errno));
 
+	fclose(f);
+
+	*size_p = size;
+	*bin_p = bin;
+}
+
+static void
+flash_file(const char *name)
+{
+	size_t size;
+	void *bin;
+
+	file_read_all(name, &size, &bin);
+
 	isp_flash(size, bin);
 	if (do_verify)
 		isp_verify(size, bin);
 
-	fclose(f);
 	free(bin);
 }
 
