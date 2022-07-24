@@ -583,13 +583,26 @@ write_flash(const char *name)
 	free(bin);
 }
 
+static void
+verify_flash(const char *name)
+{
+	size_t size;
+	void *bin;
+
+	file_read_all(name, &size, &bin);
+
+	isp_verify(size, bin);
+
+	free(bin);
+}
+
 char *argv0;
 
 static void
 usage(void)
 {
 	printf("usage: %s [-Vprv] COMMAND [ARG ...]\n", argv0);
-	printf("       %s [-Vprv] [flash|write] FILE\n", argv0);
+	printf("       %s [-Vprv] [flash|write|verify] FILE\n", argv0);
 
 	die("");
 }
@@ -634,6 +647,11 @@ main(int argc, char *argv[])
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
 		write_flash(argv[1]);
+	}
+	if (strcmp(argv[0], "verify") == 0) {
+		if (argc < 2)
+			die("%s: missing file\n", argv[0]);
+		verify_flash(argv[1]);
 	}
 
 	isp_fini();
