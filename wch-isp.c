@@ -226,8 +226,7 @@ cmd_isp_end(u8 reason)
 	u8 buf[2];
 
 	isp_send_cmd(CMD_ISP_END, sizeof(reason), &reason);
-	if (reason == 0) /* the device is not expected to respond */
-		isp_recv_cmd(CMD_ISP_END, sizeof(buf), buf);
+	isp_recv_cmd(CMD_ISP_END, sizeof(buf), buf);
 }
 
 static void
@@ -602,7 +601,7 @@ static void
 usage(void)
 {
 	printf("usage: %s [-Vprv] COMMAND [ARG ...]\n", argv0);
-	printf("       %s [-Vprv] [flash|write|verify] FILE\n", argv0);
+	printf("       %s [-Vprv] [flash|write|verify|reset] FILE\n", argv0);
 
 	die("");
 }
@@ -652,6 +651,9 @@ main(int argc, char *argv[])
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
 		verify_flash(argv[1]);
+	}
+	if (strcmp(argv[0], "reset") == 0) {
+		cmd_isp_end(1);
 	}
 
 	isp_fini();
