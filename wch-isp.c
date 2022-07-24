@@ -569,7 +569,7 @@ file_read_all(const char *name, size_t *size_p, void **bin_p)
 }
 
 static void
-flash_file(const char *name)
+write_flash(const char *name)
 {
 	size_t size;
 	void *bin;
@@ -630,7 +630,7 @@ main(int argc, char *argv[])
 	if (strcmp(argv[0], "flash") == 0) {
 		if (argc < 2)
 			die("flash: missing file\n");
-		flash_file(argv[1]);
+		write_flash(argv[1]);
 	}
 
 	isp_fini();
