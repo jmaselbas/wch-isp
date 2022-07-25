@@ -3,6 +3,7 @@ VERSION = 0.1
 
 # Install paths
 PREFIX = /usr/local
+MANPREFIX = $(PREFIX)/share/man
 UDEVPREFIX = /etc/udev
 
 ifneq ($(CROSS_COMPILE),)
@@ -25,7 +26,7 @@ SRC = wch-isp.c
 HDR = arg.h devices.h
 OBJ = $(SRC:.c=.o)
 BIN = wch-isp
-DISTFILES = $(SRC) $(HDR) 50-wchisp.rules Makefile
+DISTFILES = $(SRC) $(HDR) wch-isp.1 50-wchisp.rules Makefile
 
 all: $(BIN)
 
@@ -38,6 +39,9 @@ install:
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	cp -f $(BIN) $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/$(BIN)
+	mkdir -p $(DESTDIR)$(MANPREFIX)/man1
+	sed "s/VERSION/$(VERSION)/g" < wch-isp.1 > $(DESTDIR)$(MANPREFIX)/man1/wch-isp.1
+	chmod 644 $(DESTDIR)$(MANPREFIX)/man1/wch-isp.1
 
 install-rules:
 	mkdir -p $(DESTDIR)$(UDEVPREFIX)/rules.d
