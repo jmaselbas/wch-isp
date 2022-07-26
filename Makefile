@@ -48,7 +48,8 @@ install-rules:
 	cp -f 50-wchisp.rules $(DESTDIR)$(UDEVPREFIX)/rules.d
 
 uninstall:
-	rm -vf $(DESTDIR)$(PREFIX)/bin/$(BIN)
+	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN)
+	rm -f $(DESTDIR)$(MANPREFIX)/man1/wch-isp.1
 
 dist:
 	mkdir -p $(BIN)-$(VERSION)
