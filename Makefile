@@ -26,7 +26,8 @@ SRC = wch-isp.c
 HDR = arg.h devices.h
 OBJ = $(SRC:.c=.o)
 BIN = wch-isp
-DISTFILES = $(SRC) $(HDR) wch-isp.1 50-wchisp.rules Makefile
+MAN = wch-isp.1
+DISTFILES = $(SRC) $(HDR) $(MAN) 50-wchisp.rules Makefile
 
 all: $(BIN)
 
@@ -40,8 +41,8 @@ install:
 	cp -f $(BIN) $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/$(BIN)
 	mkdir -p $(DESTDIR)$(MANPREFIX)/man1
-	sed "s/VERSION/$(VERSION)/g" < wch-isp.1 > $(DESTDIR)$(MANPREFIX)/man1/wch-isp.1
-	chmod 644 $(DESTDIR)$(MANPREFIX)/man1/wch-isp.1
+	sed "s/VERSION/$(VERSION)/g" < $(MAN) > $(DESTDIR)$(MANPREFIX)/man1/$(MAN)
+	chmod 644 $(DESTDIR)$(MANPREFIX)/man1/$(MAN)
 
 install-rules:
 	mkdir -p $(DESTDIR)$(UDEVPREFIX)/rules.d
@@ -49,7 +50,7 @@ install-rules:
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN)
-	rm -f $(DESTDIR)$(MANPREFIX)/man1/wch-isp.1
+	rm -f $(DESTDIR)$(MANPREFIX)/man1/$(MAN)
 
 dist:
 	mkdir -p $(BIN)-$(VERSION)
