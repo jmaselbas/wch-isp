@@ -3,6 +3,7 @@ wch-isp
 
 wch-isp is an utility to write firmware into the flash of WCH microcontrollers, over USB.
 This utility started as a rewrite in C of the rust tool [wchisp](https://github.com/ch32-rs/wchisp).
+
 This utility has been tested on:
  - CH32V103
  - CH569W
@@ -16,7 +17,7 @@ wch-isp depends on libusb 1.0 or above.
 ### Linux
 
 You can, optionally, modify the Makefile to match your local setup.
-By default wch-isp will be installed in /usr/local.
+By default wch-isp will be installed in `/usr/local/bin` and udev rules (if installed) will go in `/etc/udev/rules.d`.
 
 Afterwards enter the following commands to build and install wch-isp:
 ```
@@ -24,15 +25,15 @@ make
 make install
 ```
 
-wch-isp is will likely require udev rules to have access to the USB bootloader.
-Default udev rules are available and can be install with this command:
+wch-isp will likely require udev rules to have access to the USB bootloader.
+Default udev rules are provided and can be installed with this command:
 ```
 make install-rules
 ```
 
-### Window using MSYS2
+### Windows using MSYS2
 
-On windows the build is done using MSYS2 and mingw64, you can install this from https://www.msys2.org
+On Windows the build is done using MSYS2 and mingw64, you can install this from https://www.msys2.org
 Then from the MSYS2 console install the dependencies:
 ```
 pacman -S mingw-w64-x86_64-make mingw-w64-x86_64-pkgconf mingw-w64-x86_64-gcc mingw-w64-x86_64-libusb
