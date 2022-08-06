@@ -88,10 +88,10 @@ static void isp_fini(void);
 static size_t isp_send_cmd(u8 cmd, u16 len, u8 *data);
 static size_t isp_recv_cmd(u8 cmd, u16 len, u8 *data);
 
-libusb_context *usb;
-libusb_device_handle *dev;
-unsigned int interface;
-unsigned int kernel;
+static libusb_context *usb;
+static libusb_device_handle *dev;
+static unsigned int interface;
+static unsigned int kernel;
 
 static void
 die(const char *errstr, ...)
