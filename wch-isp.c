@@ -80,8 +80,6 @@ __noreturn static void usage(void);
 
 static void usb_init(void);
 static void usb_fini(void);
-static size_t usb_send(size_t len, u8 *buf);
-static size_t usb_recv(size_t len, u8 *buf);
 
 static void isp_init(void);
 static void isp_fini(void);
@@ -107,33 +105,10 @@ die(const char *errstr, ...)
 }
 
 static size_t
-usb_send(size_t len, u8 *buf)
-{
-	int got = 0;
-	int ret = libusb_bulk_transfer(dev, ISP_EP_OUT, buf, len, &got, 10000);
-	if (ret)
-		die("send failed: %s\n", libusb_strerror(ret));
-	return got;
-}
-
-static size_t
-usb_recv(size_t len, u8 *buf)
-{
-	int got = 0;
-	int ret = libusb_bulk_transfer(dev, ISP_EP_IN, buf, len, &got, 10000);
-	if (ret)
-		die("recv failed: %s\n", libusb_strerror(ret));
-	if (got < 0)
-		die("recv failed: got %d\n", got);
-	if (got > len)
-		got = len;
-	return got;
-}
-
-static size_t
 isp_send_cmd(u8 cmd, u16 len, u8 *data)
 {
 	u8 buf[64];
+	int ret, got = 0;
 
 	if ((len + 3) > sizeof(buf))
 		die("isp_send_cmd: invalid argument, length %d\n", len);
@@ -152,23 +127,28 @@ isp_send_cmd(u8 cmd, u16 len, u8 *data)
 		dbg_printf("%.2x", data[i]);
 	dbg_printf("\n");
 
-	return usb_send(len + 3, buf);
+	ret = libusb_bulk_transfer(dev, ISP_EP_OUT, buf, len + 3, &got, 10000);
+	if (ret)
+		die("isp_send_cmd: %s\n", libusb_strerror(ret));
+	return got;
 }
 
 static size_t
 isp_recv_cmd(u8 cmd, u16 len, u8 *data)
 {
 	u8 buf[64];
-	size_t got;
+	int ret, got = 0;
 	u16 hdrlen;
 
 	if ((len + 4) > sizeof(buf))
 		die("isp_recv_cmd: invalid argument, length %d\n", len);
-	got = usb_recv(len + 4, buf);
+
+	ret = libusb_bulk_transfer(dev, ISP_EP_IN, buf, len + 4, &got, 10000);
+	if (ret)
+		die("isp_recv_cmd: %s\n", libusb_strerror(ret));
 
 	if (got < 4)
 		die("isp_recv_cmd: not enough data recv\n");
-
 	if (buf[0] != cmd)
 		die("isp_recv_cmd: got wrong command %#.x (exp %#.x)\n", buf[0], cmd);
 	if (buf[1])
