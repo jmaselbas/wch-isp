@@ -97,8 +97,10 @@ __noreturn static void die(const char *errstr, ...);
 __noreturn static void version(void);
 __noreturn static void usage(void);
 
-static void usb_init(struct isp_dev *dev);
-static void usb_fini(struct isp_dev *dev);
+static void usb_init(void);
+static void usb_fini(void);
+static void usb_open(struct isp_dev *dev);
+static void usb_close(struct isp_dev *dev);
 
 static void isp_init(struct isp_dev *dev);
 static void isp_fini(struct isp_dev *dev);
@@ -324,13 +326,19 @@ read_btver(struct isp_dev *dev)
 }
 
 static void
-usb_init(struct isp_dev *dev)
+usb_init(void)
 {
 	int err;
 
 	err = libusb_init(&usb);
 	if (err)
 		die("libusb_init: %s\n", libusb_strerror(err));
+}
+
+static void
+usb_open(struct isp_dev *dev)
+{
+	int err;
 
 	dev->usb_dev = libusb_open_device_with_vid_pid(usb, ISP_VID, ISP_PID);
 	if (!dev->usb_dev)
@@ -353,7 +361,7 @@ usb_init(struct isp_dev *dev)
 }
 
 static void
-usb_fini(struct isp_dev *dev)
+usb_close(struct isp_dev *dev)
 {
 	int err = 0;
 
@@ -366,7 +374,11 @@ usb_fini(struct isp_dev *dev)
 
 	if (dev->usb_dev)
 		libusb_close(dev->usb_dev);
+}
 
+static void
+usb_fini(void)
+{
 	if (usb)
 		libusb_exit(usb);
 }
@@ -617,7 +629,8 @@ main(int argc, char *argv[])
 		usage();
 	} ARGEND;
 
-	usb_init(&dev);
+	usb_init();
+	usb_open(&dev);
 	isp_init(&dev);
 
 	if (argc < 1)
@@ -639,7 +652,8 @@ main(int argc, char *argv[])
 	}
 
 	isp_fini(&dev);
-	usb_fini(&dev);
+	usb_close(&dev);
+	usb_fini();
 
 	return 0;
 }
