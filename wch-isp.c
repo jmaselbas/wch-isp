@@ -88,7 +88,6 @@ static size_t isp_recv_cmd(u8 cmd, u16 len, u8 *data);
 
 static libusb_context *usb;
 static libusb_device_handle *dev;
-static unsigned int interface;
 static unsigned int kernel;
 
 static void
