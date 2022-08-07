@@ -74,21 +74,36 @@ typedef uint32_t u32;
 #define ISP_EP_OUT (2 | LIBUSB_ENDPOINT_OUT)
 #define ISP_EP_IN (2 | LIBUSB_ENDPOINT_IN)
 
+struct isp_dev {
+	u8 id;
+	u8 type;
+	size_t uid_len;
+	u8 uid[8];
+	u16 btver;
+	u8 xor_key[8];
+	struct db *db;
+	libusb_device_handle *usb_dev;
+	unsigned int kernel;
+};
+
+static libusb_context *usb;
+static u8 isp_key[30]; /* all zero key */
+
+static int do_progress;
+static int do_reset;
+static int do_verify;
+
 __noreturn static void die(const char *errstr, ...);
 __noreturn static void version(void);
 __noreturn static void usage(void);
 
-static void usb_init(void);
-static void usb_fini(void);
+static void usb_init(struct isp_dev *dev);
+static void usb_fini(struct isp_dev *dev);
 
-static void isp_init(void);
-static void isp_fini(void);
-static size_t isp_send_cmd(u8 cmd, u16 len, u8 *data);
-static size_t isp_recv_cmd(u8 cmd, u16 len, u8 *data);
-
-static libusb_context *usb;
-static libusb_device_handle *dev;
-static unsigned int kernel;
+static void isp_init(struct isp_dev *dev);
+static void isp_fini(struct isp_dev *dev);
+static size_t isp_send_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data);
+static size_t isp_recv_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data);
 
 static void
 die(const char *errstr, ...)
@@ -99,12 +114,11 @@ die(const char *errstr, ...)
 	vfprintf(stderr, errstr, ap);
 	va_end(ap);
 
-	usb_fini();
 	exit(1);
 }
 
 static size_t
-isp_send_cmd(u8 cmd, u16 len, u8 *data)
+isp_send_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data)
 {
 	u8 buf[64];
 	int ret, got = 0;
@@ -126,14 +140,14 @@ isp_send_cmd(u8 cmd, u16 len, u8 *data)
 		dbg_printf("%.2x", data[i]);
 	dbg_printf("\n");
 
-	ret = libusb_bulk_transfer(dev, ISP_EP_OUT, buf, len + 3, &got, 10000);
+	ret = libusb_bulk_transfer(dev->usb_dev, ISP_EP_OUT, buf, len + 3, &got, 10000);
 	if (ret)
 		die("isp_send_cmd: %s\n", libusb_strerror(ret));
 	return got;
 }
 
 static size_t
-isp_recv_cmd(u8 cmd, u16 len, u8 *data)
+isp_recv_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data)
 {
 	u8 buf[64];
 	int ret, got = 0;
@@ -142,7 +156,7 @@ isp_recv_cmd(u8 cmd, u16 len, u8 *data)
 	if ((len + 4) > sizeof(buf))
 		die("isp_recv_cmd: invalid argument, length %d\n", len);
 
-	ret = libusb_bulk_transfer(dev, ISP_EP_IN, buf, len + 4, &got, 10000);
+	ret = libusb_bulk_transfer(dev->usb_dev, ISP_EP_IN, buf, len + 4, &got, 10000);
 	if (ret)
 		die("isp_recv_cmd: %s\n", libusb_strerror(ret));
 
@@ -171,7 +185,7 @@ isp_recv_cmd(u8 cmd, u16 len, u8 *data)
 }
 
 static void
-cmd_identify(u8 *dev_id, u8 *dev_type)
+cmd_identify(struct isp_dev *dev, u8 *dev_id, u8 *dev_type)
 {
 	u8 buf[] = "\0\0MCU ISP & WCH.CN";
 	u8 ids[2];
@@ -179,8 +193,8 @@ cmd_identify(u8 *dev_id, u8 *dev_type)
 	buf[0] = 0; // dev_id
 	buf[1] = 0; // dev_type
 	/* do not send the terminating nul byte, hence sizeof(buf) - 1 */
-	isp_send_cmd(CMD_IDENTIFY, sizeof(buf) - 1, buf);
-	isp_recv_cmd(CMD_IDENTIFY, sizeof(ids), ids);
+	isp_send_cmd(dev, CMD_IDENTIFY, sizeof(buf) - 1, buf);
+	isp_recv_cmd(dev, CMD_IDENTIFY, sizeof(ids), ids);
 
 	if (dev_id)
 		*dev_id = ids[0];
@@ -189,27 +203,27 @@ cmd_identify(u8 *dev_id, u8 *dev_type)
 }
 
 static void
-cmd_isp_key(size_t len, u8 *key, u8 *sum)
+cmd_isp_key(struct isp_dev *dev, size_t len, u8 *key, u8 *sum)
 {
 	u8 rsp[2];
 
-	isp_send_cmd(CMD_ISP_KEY, len, key);
-	isp_recv_cmd(CMD_ISP_KEY, sizeof(rsp), rsp);
+	isp_send_cmd(dev, CMD_ISP_KEY, len, key);
+	isp_recv_cmd(dev, CMD_ISP_KEY, sizeof(rsp), rsp);
 	if (sum)
 		*sum = rsp[0];
 }
 
 static void
-cmd_isp_end(u8 reason)
+cmd_isp_end(struct isp_dev *dev, u8 reason)
 {
 	u8 buf[2];
 
-	isp_send_cmd(CMD_ISP_END, sizeof(reason), &reason);
-	isp_recv_cmd(CMD_ISP_END, sizeof(buf), buf);
+	isp_send_cmd(dev, CMD_ISP_END, sizeof(reason), &reason);
+	isp_recv_cmd(dev, CMD_ISP_END, sizeof(buf), buf);
 }
 
 static void
-cmd_erase(u32 sectors)
+cmd_erase(struct isp_dev *dev, u32 sectors)
 {
 	u8 sec[4];
 
@@ -218,12 +232,12 @@ cmd_erase(u32 sectors)
 	sec[2] = (sectors >> 16) & 0xff;
 	sec[3] = (sectors >> 24) & 0xff;
 
-	isp_send_cmd(CMD_ERASE, sizeof(sec), sec);
-	isp_recv_cmd(CMD_ERASE, 2, sec); /* receive two 0 bytes */
+	isp_send_cmd(dev, CMD_ERASE, sizeof(sec), sec);
+	isp_recv_cmd(dev, CMD_ERASE, 2, sec); /* receive two 0 bytes */
 }
 
 static size_t
-cmd_program(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
+cmd_program(struct isp_dev *dev, uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 {
 	u8 unk[61];
 	u8 rsp[2];
@@ -239,8 +253,8 @@ cmd_program(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 	for (i = 0; i < len; i++)
 		unk[5 + i] = data[i] ^ key[i % 8];
 
-	isp_send_cmd(CMD_PROGRAM, len + 5, unk);
-	isp_recv_cmd(CMD_PROGRAM, sizeof(rsp), rsp);
+	isp_send_cmd(dev, CMD_PROGRAM, len + 5, unk);
+	isp_recv_cmd(dev, CMD_PROGRAM, sizeof(rsp), rsp);
 
 	if (rsp[0] != 0 || rsp[1] != 0)
 		die("Fail to program chunk @ %#x error: %.2x %.2x\n", addr, rsp[0], rsp[1]);
@@ -249,7 +263,7 @@ cmd_program(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 }
 
 static size_t
-cmd_verify(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
+cmd_verify(struct isp_dev *dev, uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 {
 	u8 unk[61];
 	u8 rsp[2];
@@ -265,8 +279,8 @@ cmd_verify(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 	for (i = 0; i < len; i++)
 		unk[5 + i] = data[i] ^ key[i % 8];
 
-	isp_send_cmd(CMD_VERIFY, len + 5, unk);
-	isp_recv_cmd(CMD_VERIFY, sizeof(rsp), rsp);
+	isp_send_cmd(dev, CMD_VERIFY, len + 5, unk);
+	isp_recv_cmd(dev, CMD_VERIFY, sizeof(rsp), rsp);
 
 	if (rsp[0] != 0 || rsp[1] != 0)
 		die("Fail to verify chunk @ %#x error: %.2x %.2x\n", addr, rsp[0], rsp[1]);
@@ -275,7 +289,7 @@ cmd_verify(uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 }
 
 static size_t
-cmd_read_conf(u16 cfgmask, size_t len, u8 *cfg)
+cmd_read_conf(struct isp_dev *dev, u16 cfgmask, size_t len, u8 *cfg)
 {
 	u8 buf[60];
 	u8 req[2];
@@ -285,8 +299,8 @@ cmd_read_conf(u16 cfgmask, size_t len, u8 *cfg)
 	req[0] = (cfgmask >>  0) & 0xff;
 	req[1] = (cfgmask >>  8) & 0xff;
 
-	isp_send_cmd(CMD_READ_CONFIG, sizeof(req), req);
-	got = isp_recv_cmd(CMD_READ_CONFIG, sizeof(buf), buf);
+	isp_send_cmd(dev, CMD_READ_CONFIG, sizeof(req), req);
+	got = isp_recv_cmd(dev, CMD_READ_CONFIG, sizeof(buf), buf);
 	if (got < 2)
 		die("read conf fail: not received enough bytes\n");
 	mask = buf[0] | (buf[1] << 8);
@@ -298,18 +312,19 @@ cmd_read_conf(u16 cfgmask, size_t len, u8 *cfg)
 	return len;
 }
 
-static u16 read_btver(void)
+static u16
+read_btver(struct isp_dev *dev)
 {
 	u8 buf[4];
 
 	/* format: [0x00, major, minor, 0x00] */
-	cmd_read_conf(CFG_MASK_BTVER, sizeof(buf), buf);
+	cmd_read_conf(dev, CFG_MASK_BTVER, sizeof(buf), buf);
 
 	return (buf[1] << 8) | buf[2];
 }
 
 static void
-usb_init(void)
+usb_init(struct isp_dev *dev)
 {
 	int err;
 
@@ -317,128 +332,114 @@ usb_init(void)
 	if (err)
 		die("libusb_init: %s\n", libusb_strerror(err));
 
-	dev = libusb_open_device_with_vid_pid(usb, ISP_VID, ISP_PID);
-	if (!dev)
+	dev->usb_dev = libusb_open_device_with_vid_pid(usb, ISP_VID, ISP_PID);
+	if (!dev->usb_dev)
 		die("Fail to open device %4x:%4x %s\n", ISP_VID, ISP_PID,
 		    strerror(errno));
 
-	err = libusb_kernel_driver_active(dev, 0);
+	err = libusb_kernel_driver_active(dev->usb_dev, 0);
 	if (err == LIBUSB_ERROR_NOT_SUPPORTED)
 		err = 0;
 	if (err < 0)
 		die("libusb_kernel_driver_active: %s\n", libusb_strerror(err));
-	kernel = err;
-	if (kernel == 1)
-		if (libusb_detach_kernel_driver(dev, 0))
+	dev->kernel = err;
+	if (dev->kernel == 1)
+		if (libusb_detach_kernel_driver(dev->usb_dev, 0))
 			die("Couldn't detach kernel driver!\n");
 
-	err = libusb_claim_interface(dev, 0);
+	err = libusb_claim_interface(dev->usb_dev, 0);
 	if (err)
 		die("libusb_claim_interface: %s\n", libusb_strerror(err));
 }
 
 static void
-usb_fini(void)
+usb_fini(struct isp_dev *dev)
 {
 	int err = 0;
 
-	if (dev)
-		err = libusb_release_interface(dev, 0);
+	if (dev->usb_dev)
+		err = libusb_release_interface(dev->usb_dev, 0);
 	if (err)
 		fprintf(stderr, "libusb_release_interface: %s\n", libusb_strerror(err));
-	if (kernel == 1)
-		libusb_attach_kernel_driver(dev, 0);
+	if (dev->kernel == 1)
+		libusb_attach_kernel_driver(dev->usb_dev, 0);
 
-	if (dev)
-		libusb_close(dev);
+	if (dev->usb_dev)
+		libusb_close(dev->usb_dev);
 
 	if (usb)
 		libusb_exit(usb);
 }
 
-static u8 dev_id;
-static u8 dev_type;
-static u8 dev_uid[8];
-static u16 dev_btver;
-static size_t dev_uid_len;
-static u8 isp_key[30]; /* all zero key */
-static u8 xor_key[8];
-
-static struct dev *dev_db;
-
-static int do_progress;
-static int do_reset;
-static int do_verify;
-
 static size_t
-db_flash_size(void)
+db_flash_size(struct isp_dev *dev)
 {
-	if (dev_db && dev_db->flash_size > 0)
-		return dev_db->flash_size;
+	if (dev->db && dev->db->flash_size > 0)
+		return dev->db->flash_size;
 	return -1;
 }
 
 static size_t
-db_flash_sector_size(void)
+db_flash_sector_size(struct isp_dev *dev)
 {
-	if (dev_db && dev_db->flash_sector_size > 0)
-		return dev_db->flash_sector_size;
+	if (dev->db && dev->db->flash_sector_size > 0)
+		return dev->db->flash_sector_size;
 	return SECTOR_SIZE;
 }
 
 static void
-isp_init(void)
+isp_init(struct isp_dev *dev)
 {
 	size_t i;
 	u8 sum;
 	u8 rsp;
 
 	/* get the device type and id */
-	cmd_identify(&dev_id, &dev_type);
+	cmd_identify(dev, &dev->id, &dev->type);
 
 	/* match the detected device */
 	for (i = 0; i < LEN(devices); i++) {
-		if (devices[i].type == dev_type && devices[i].id == dev_id) {
-			dev_db = &devices[i];
+		if (devices[i].type == dev->type && devices[i].id == dev->id) {
+			dev->db = &devices[i];
 			break;
 		}
 	}
-	if (dev_db) {
-		printf("Found chip: %s [0x%.2x%.2x] Flash %dK\n", dev_db->name,
-		       dev_type, dev_id, dev_db->flash_size / SZ_1K);
+	if (dev->db) {
+		printf("Found chip: %s [0x%.2x%.2x] Flash %dK\n", dev->db->name,
+		       dev->type, dev->id, dev->db->flash_size / SZ_1K);
 	} else {
-		printf("Unknown chip: [0x%.2x%.2x]", dev_type, dev_id);
+		printf("Unknown chip: [0x%.2x%.2x]", dev->type, dev->id);
 	}
 
 	/* get the device uid */
-	dev_uid_len = cmd_read_conf(CFG_MASK_UID, sizeof(dev_uid), dev_uid);
+	dev->uid_len = cmd_read_conf(dev, CFG_MASK_UID, sizeof(dev->uid), dev->uid);
 	printf("chip uid: ");
-	for (i = 0; i < dev_uid_len; i++)
-		printf("%.2x ", dev_uid[i]);
+	for (i = 0; i < dev->uid_len; i++)
+		printf("%.2x ", dev->uid[i]);
 	puts("");
 
 	/* get the bootloader version */
-	dev_btver = read_btver();
-	printf("bootloader: v%d.%d\n", dev_btver >> 8, dev_btver & 0xff);
+	dev->btver = read_btver(dev);
+	printf("bootloader: v%d.%d\n", dev->btver >> 8, dev->btver & 0xff);
 
 	/* initialize xor_key */
-	for (sum = 0, i = 0; i < dev_uid_len; i++)
-		sum += dev_uid[i];
-	memset(xor_key, sum, sizeof(xor_key));
-	xor_key[7] = xor_key[0] + dev_id;
+	for (sum = 0, i = 0; i < dev->uid_len; i++)
+		sum += dev->uid[i];
+	memset(dev->xor_key, sum, sizeof(dev->xor_key));
+	dev->xor_key[7] = dev->xor_key[0] + dev->id;
 
 	/* send the isp key */
-	cmd_isp_key(sizeof(isp_key), isp_key, &rsp);
+	cmd_isp_key(dev, sizeof(isp_key), isp_key, &rsp);
 
-	if (dev_btver >= BTVER_2_7) {
+	if (dev->btver >= BTVER_2_7) {
 		/* bootloader version 2.7 (and maybe onward) simply send zero */
 		sum = 0;
 	} else {
 		/* bootloader version 2.6 (and maybe prior versions) send back
 		 * the a checksum of the xor_key. This response can be used to
 		 * make sure we are in sync. */
-		for (sum = 0, i = 0; i < sizeof(xor_key); i++)
-			sum += xor_key[i];
+		for (sum = 0, i = 0; i < sizeof(dev->xor_key); i++)
+			sum += dev->xor_key[i];
 	}
 	if (rsp != sum)
 		die("failed set isp key, wrong reply, got %x (exp %x)\n", rsp, sum);
@@ -461,29 +462,29 @@ progress_bar(const char *act, size_t current, size_t total)
 }
 
 static void
-isp_flash(size_t size, u8 *data)
+isp_flash(struct isp_dev *dev, size_t size, u8 *data)
 {
-	size_t sector_size = db_flash_sector_size();
+	size_t sector_size = db_flash_sector_size(dev);
 	u32 nr_sectors = ALIGN(size, sector_size) / sector_size;
 	size_t off = 0;
 	size_t rem = size;
 	size_t len;
 
-	cmd_erase(nr_sectors);
+	cmd_erase(dev, nr_sectors);
 
 	while (off < size) {
 		progress_bar("write", off, size);
 
-		len = cmd_program(off, rem, data + off, xor_key);
+		len = cmd_program(dev, off, rem, data + off, dev->xor_key);
 		off += len;
 		rem -= len;
 	}
-	cmd_program(off, 0, NULL, xor_key);
+	cmd_program(dev, off, 0, NULL, dev->xor_key);
 	progress_bar("write", size, size);
 }
 
 static void
-isp_verify(size_t size, u8 *data)
+isp_verify(struct isp_dev *dev, size_t size, u8 *data)
 {
 	size_t off = 0;
 	size_t rem = size;
@@ -492,7 +493,7 @@ isp_verify(size_t size, u8 *data)
 	while (off < size) {
 		progress_bar("verify", off, size);
 
-		len = cmd_verify(off, rem, data + off, xor_key);
+		len = cmd_verify(dev, off, rem, data + off, dev->xor_key);
 		off += len;
 		rem -= len;
 	}
@@ -500,10 +501,10 @@ isp_verify(size_t size, u8 *data)
 }
 
 static void
-isp_fini(void)
+isp_fini(struct isp_dev *dev)
 {
 	if (do_reset)
-		cmd_isp_end(1);
+		cmd_isp_end(dev, 1);
 }
 
 static void
@@ -529,9 +530,6 @@ file_read_all(const char *name, size_t *size_p, void **bin_p)
 
 	/* binary image needs to be aligned to a 64 bytes boundary */
 	size = ALIGN(len, 64);
-	if (size > db_flash_size())
-		die("%s: file too big, flash size is %d", name, db_flash_size());
-
 	bin = calloc(1, size);
 	if (bin == NULL)
 		die("calloc: %s\n", strerror(errno));
@@ -547,29 +545,33 @@ file_read_all(const char *name, size_t *size_p, void **bin_p)
 }
 
 static void
-write_flash(const char *name)
+write_flash(struct isp_dev *dev, const char *name)
 {
 	size_t size;
 	void *bin;
 
 	file_read_all(name, &size, &bin);
+	if (size > db_flash_size(dev))
+		die("%s: file too big, flash size is %d", name, db_flash_size(dev));
 
-	isp_flash(size, bin);
+	isp_flash(dev, size, bin);
 	if (do_verify)
-		isp_verify(size, bin);
+		isp_verify(dev, size, bin);
 
 	free(bin);
 }
 
 static void
-verify_flash(const char *name)
+verify_flash(struct isp_dev *dev, const char *name)
 {
 	size_t size;
 	void *bin;
 
 	file_read_all(name, &size, &bin);
+	if (size > db_flash_size(dev))
+		die("%s: file too big, flash size is %d", name, db_flash_size(dev));
 
-	isp_verify(size, bin);
+	isp_verify(dev, size, bin);
 
 	free(bin);
 }
@@ -595,6 +597,7 @@ version(void)
 int
 main(int argc, char *argv[])
 {
+	struct isp_dev dev;
 
 	argv0 = argv[0];
 
@@ -614,8 +617,8 @@ main(int argc, char *argv[])
 		usage();
 	} ARGEND;
 
-	usb_init();
-	isp_init();
+	usb_init(&dev);
+	isp_init(&dev);
 
 	if (argc < 1)
 		die("missing command\n");
@@ -624,19 +627,19 @@ main(int argc, char *argv[])
 	    (strcmp(argv[0], "write") == 0)) {
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
-		write_flash(argv[1]);
+		write_flash(&dev, argv[1]);
 	}
 	if (strcmp(argv[0], "verify") == 0) {
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
-		verify_flash(argv[1]);
+		verify_flash(&dev, argv[1]);
 	}
 	if (strcmp(argv[0], "reset") == 0) {
-		cmd_isp_end(1);
+		cmd_isp_end(&dev, 1);
 	}
 
-	isp_fini();
-	usb_fini();
+	isp_fini(&dev);
+	usb_fini(&dev);
 
 	return 0;
 }

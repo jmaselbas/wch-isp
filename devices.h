@@ -14,7 +14,7 @@
 #define SZ_448K (448 * SZ_1K)
 #define SZ_480K (480 * SZ_1K)
 
-struct dev {
+struct db {
 	u8 type;
 	u8 id;
 	const char *name;
@@ -23,7 +23,7 @@ struct dev {
 	u32 flash_sector_size;
 };
 
-struct dev devices[] = {
+struct db devices[] = {
 	/* type    id  name           flash    eeprom */
 	{ 0x10, 0x63, "CH563",        SZ_224K, SZ_28K, .flash_sector_size = 256 },
 	{ 0x10, 0x42, "CH563",        SZ_224K, SZ_28K, .flash_sector_size = 256 },
