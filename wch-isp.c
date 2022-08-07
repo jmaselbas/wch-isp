@@ -96,6 +96,7 @@ static int do_verify;
 __noreturn static void die(const char *errstr, ...);
 __noreturn static void version(void);
 __noreturn static void usage(void);
+static void *xcalloc(size_t nmemb, size_t size);
 
 static void usb_init(void);
 static void usb_fini(void);
@@ -118,6 +119,15 @@ die(const char *errstr, ...)
 	va_end(ap);
 
 	exit(1);
+}
+
+static void *
+xcalloc(size_t nmemb, size_t size)
+{
+	void *p = calloc(nmemb, size);
+	if (p == NULL)
+		die("calloc: %s\n", strerror(errno));
+	return p;
 }
 
 static size_t
