@@ -24,6 +24,7 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
+#define BIT(x)		(1UL << (x))
 #define MIN(a, b)	((a) < (b) ? (a) : (b))
 #define MAX(a, b)	((a) < (b) ? (b) : (a))
 #define LEN(a)		(sizeof(a) / sizeof(*a))
@@ -629,6 +630,47 @@ verify_flash(struct isp_dev *dev, const char *name)
 	free(bin);
 }
 
+static void
+ch569_print_config(size_t len, u8 *cfg)
+{
+	u32 nv;
+
+	if (len < 12)
+		return;
+	nv = (cfg[8] << 0) | (cfg[9] << 8) | (cfg[10] << 16) | (cfg[11] << 24);
+	printf("[4] RESET_EN %d: %s\n", !!(nv & BIT(4)),
+	       (nv & BIT(4)) ? "enabled" : "disabled");
+	printf("[5] DEBUG_EN %d: %s\n", !!(nv & BIT(5)),
+	       (nv & BIT(5)) ? "enabled" : "disabled");
+	printf("[6] BOOT_EN %d: %s\n", !!(nv & BIT(6)),
+	       (nv & BIT(6)) ? "enabled" : "disabled");
+	printf("[7] CODE_READ_EN %d: %s\n", !!(nv & BIT(7)),
+	       (nv & BIT(7)) ? "enabled" : "disabled");
+	printf("[29] LOCKUP_RST_EN %d: %s\n", !!(nv & BIT(29)),
+	       (nv & BIT(29)) ? "enabled" : "disabled");
+	printf("[31:30] USER_MEM %.2b: %s\n", (nv >> 30) & 0b11,
+	       ((nv >> 30) & 0b11) == 0 ? "RAMX 32KB + ROM 96KB" :
+	       ((nv >> 30) & 0b11) == 1 ? "RAMX 64KB + ROM 64KB" :
+	       "RAMX 96KB + ROM 32KB");
+}
+
+static void
+config_show(struct isp_dev *dev)
+{
+	u8 cfg[16];
+	size_t len, i;
+
+	len = cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
+
+	if (dev->type == 0x10 && dev->id == 0x69) {
+		ch569_print_config(len, cfg);
+		return;
+	}
+
+	for (i = 0; i < len; i++)
+		printf("%.2x%c", cfg[i], ((i % 4) == 3) ? '\n' : ' ');
+}
+
 char *argv0;
 
 static void
@@ -715,6 +757,9 @@ main(int argc, char *argv[])
 	}
 	if (strcmp(argv[0], "reset") == 0) {
 		cmd_isp_end(dev, 1);
+	}
+	if (strcmp(argv[0], "config") == 0) {
+		config_show(dev);
 	}
 
 	isp_fini(dev);
