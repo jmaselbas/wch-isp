@@ -85,6 +85,8 @@ struct isp_dev {
 	libusb_device_handle *usb_dev;
 	unsigned int kernel;
 };
+struct isp_dev *dev_list;
+size_t dev_count;
 
 static libusb_context *usb;
 static u8 isp_key[30]; /* all zero key */
@@ -100,7 +102,7 @@ static void *xcalloc(size_t nmemb, size_t size);
 
 static void usb_init(void);
 static void usb_fini(void);
-static void usb_open(struct isp_dev *dev);
+static void usb_open(struct isp_dev *dev, libusb_device *usb_dev);
 static void usb_close(struct isp_dev *dev);
 
 static void isp_init(struct isp_dev *dev);
@@ -339,22 +341,39 @@ read_btver(struct isp_dev *dev)
 static void
 usb_init(void)
 {
+	struct libusb_device_descriptor desc;
+	ssize_t i, count;
+	libusb_device **list;
 	int err;
 
 	err = libusb_init(&usb);
 	if (err)
 		die("libusb_init: %s\n", libusb_strerror(err));
+
+	count = libusb_get_device_list(usb, &list);
+	if (count < 0)
+		die("Fail to get a list of USB devices: %s\n", strerror(errno));
+
+	dev_list = xcalloc(count, sizeof(*dev_list));
+	for (i = 0; i < count; i++) {
+		err = libusb_get_device_descriptor(list[i], &desc);
+		if (err < 0)
+			continue;
+		if (desc.idVendor == ISP_VID && desc.idProduct == ISP_PID)
+			usb_open(&dev_list[dev_count++], libusb_ref_device(list[i]));
+	}
+
+	libusb_free_device_list(list, 1);
 }
 
 static void
-usb_open(struct isp_dev *dev)
+usb_open(struct isp_dev *dev, libusb_device *usb_dev)
 {
 	int err;
 
-	dev->usb_dev = libusb_open_device_with_vid_pid(usb, ISP_VID, ISP_PID);
-	if (!dev->usb_dev)
-		die("Fail to open device %4x:%4x %s\n", ISP_VID, ISP_PID,
-		    strerror(errno));
+	err = libusb_open(usb_dev, &dev->usb_dev);
+	if (err < 0)
+		die("libusb_open: %s\n", libusb_strerror(err));
 
 	err = libusb_kernel_driver_active(dev->usb_dev, 0);
 	if (err == LIBUSB_ERROR_NOT_SUPPORTED)
@@ -390,6 +409,17 @@ usb_close(struct isp_dev *dev)
 static void
 usb_fini(void)
 {
+	libusb_device *dev;
+
+	while (dev_count > 0) {
+		dev_count--;
+		dev = libusb_get_device(dev_list[dev_count].usb_dev);
+		usb_close(&dev_list[dev_count]);
+		libusb_unref_device(dev);
+	}
+	if (dev_list)
+		free(dev_list);
+
 	if (usb)
 		libusb_exit(usb);
 }
@@ -606,6 +636,7 @@ usage(void)
 {
 	printf("usage: %s [-Vprv] COMMAND [ARG ...]\n", argv0);
 	printf("       %s [-Vprv] [flash|write|verify|reset] FILE\n", argv0);
+	printf("       %s [-Vprv] list\n", argv0);
 
 	die("");
 }
@@ -620,7 +651,8 @@ version(void)
 int
 main(int argc, char *argv[])
 {
-	struct isp_dev dev;
+	struct isp_dev *dev;
+	size_t i;
 
 	argv0 = argv[0];
 
@@ -641,34 +673,52 @@ main(int argc, char *argv[])
 	} ARGEND;
 
 	usb_init();
-	usb_open(&dev);
-	isp_init(&dev);
-	isp_key_init(&dev);
-	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n",
-	       dev.btver >> 8, dev.btver & 0xff,
-	       dev.uid_str, dev.type, dev.id,
-	       dev.db ? dev.db->name : "unknown");
 
 	if (argc < 1)
 		die("missing command\n");
+
+	if (dev_count == 0)
+		die("no device detected\n");
+
+	for (i = 0; i < dev_count; i++)
+		isp_init(&dev_list[i]);
+
+	if (strcmp(argv[0], "list") == 0) {
+		for (i = 0; i < dev_count; i++) {
+			dev = &dev_list[i];
+			printf("%zd: BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n", i,
+			       dev->btver >> 8, dev->btver & 0xff,
+			       dev->uid_str, dev->type, dev->id,
+			       dev->db ? dev->db->name : "unknown");
+		}
+		goto out;
+	}
+
+	/* for now select the first device */
+	dev = &dev_list[0];
+	isp_key_init(dev);
+	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n",
+	       dev->btver >> 8, dev->btver & 0xff,
+	       dev->uid_str, dev->type, dev->id,
+	       dev->db ? dev->db->name : "unknown");
 
 	if ((strcmp(argv[0], "flash") == 0) ||
 	    (strcmp(argv[0], "write") == 0)) {
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
-		write_flash(&dev, argv[1]);
+		write_flash(dev, argv[1]);
 	}
 	if (strcmp(argv[0], "verify") == 0) {
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
-		verify_flash(&dev, argv[1]);
+		verify_flash(dev, argv[1]);
 	}
 	if (strcmp(argv[0], "reset") == 0) {
-		cmd_isp_end(&dev, 1);
+		cmd_isp_end(dev, 1);
 	}
 
-	isp_fini(&dev);
-	usb_close(&dev);
+	isp_fini(dev);
+out:
 	usb_fini();
 
 	return 0;

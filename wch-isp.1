@@ -11,6 +11,10 @@ wch-isp \- firmware programmer for WCH microcontrollers
 .RB [ \-Vprv ]
 .RB [ flash | write | verify | reset ]
 .I FILE
+.P
+.B wch-isp
+.RB [ \-Vprv ]
+.B list
 .SH DESCRIPTION
 .B wch-isp
 is an utility to write firmware into the flash of WCH microcontrollers, over USB.
@@ -28,6 +32,9 @@ Reset the microcontroller after the command is completed.
 .B \-V
 Prints version information to stdout, then exits.
 .SH COMMANDS
+.TP
+.B list
+List the currently detected compatible USB devices.
 .TP
 .BI write " FILE"
 Write
