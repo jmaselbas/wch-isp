@@ -77,8 +77,8 @@ typedef uint32_t u32;
 struct isp_dev {
 	u8 id;
 	u8 type;
-	size_t uid_len;
 	u8 uid[8];
+	char uid_str[3 * 8];
 	u16 btver;
 	u8 xor_key[8];
 	struct db *db;
@@ -103,6 +103,7 @@ static void usb_open(struct isp_dev *dev);
 static void usb_close(struct isp_dev *dev);
 
 static void isp_init(struct isp_dev *dev);
+static void isp_key_init(struct isp_dev *dev);
 static void isp_fini(struct isp_dev *dev);
 static size_t isp_send_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data);
 static size_t isp_recv_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data);
@@ -403,8 +404,6 @@ static void
 isp_init(struct isp_dev *dev)
 {
 	size_t i;
-	u8 sum;
-	u8 rsp;
 
 	/* get the device type and id */
 	cmd_identify(dev, &dev->id, &dev->type);
@@ -416,26 +415,28 @@ isp_init(struct isp_dev *dev)
 			break;
 		}
 	}
-	if (dev->db) {
-		printf("Found chip: %s [0x%.2x%.2x] Flash %dK\n", dev->db->name,
-		       dev->type, dev->id, dev->db->flash_size / SZ_1K);
-	} else {
-		printf("Unknown chip: [0x%.2x%.2x]", dev->type, dev->id);
-	}
-
-	/* get the device uid */
-	dev->uid_len = cmd_read_conf(dev, CFG_MASK_UID, sizeof(dev->uid), dev->uid);
-	printf("chip uid: ");
-	for (i = 0; i < dev->uid_len; i++)
-		printf("%.2x ", dev->uid[i]);
-	puts("");
 
 	/* get the bootloader version */
 	dev->btver = read_btver(dev);
-	printf("bootloader: v%d.%d\n", dev->btver >> 8, dev->btver & 0xff);
+
+	/* get the device uid */
+	cmd_read_conf(dev, CFG_MASK_UID, sizeof(dev->uid), dev->uid);
+
+	for (i = 0; i < sizeof(dev->uid); i++) {
+		snprintf(dev->uid_str + 3 * i, sizeof(dev->uid_str) - 3 * i,
+			 "%.2x-", dev->uid[i]);
+	}
+}
+
+static void
+isp_key_init(struct isp_dev *dev)
+{
+	size_t i;
+	u8 sum;
+	u8 rsp;
 
 	/* initialize xor_key */
-	for (sum = 0, i = 0; i < dev->uid_len; i++)
+	for (sum = 0, i = 0; i < sizeof(dev->uid); i++)
 		sum += dev->uid[i];
 	memset(dev->xor_key, sum, sizeof(dev->xor_key));
 	dev->xor_key[7] = dev->xor_key[0] + dev->id;
@@ -632,6 +633,11 @@ main(int argc, char *argv[])
 	usb_init();
 	usb_open(&dev);
 	isp_init(&dev);
+	isp_key_init(&dev);
+	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n",
+	       dev.btver >> 8, dev.btver & 0xff,
+	       dev.uid_str, dev.type, dev.id,
+	       dev.db ? dev.db->name : "unknown");
 
 	if (argc < 1)
 		die("missing command\n");
