@@ -94,7 +94,7 @@ static u8 isp_key[30]; /* all zero key */
 
 static int do_progress;
 static int do_reset;
-static int do_verify;
+static int do_verify = 1;
 
 __noreturn static void die(const char *errstr, ...);
 __noreturn static void version(void);
@@ -676,9 +676,9 @@ char *argv0;
 static void
 usage(void)
 {
-	printf("usage: %s [-Vprv] COMMAND [ARG ...]\n", argv0);
-	printf("       %s [-Vprv] [flash|write|verify|reset] FILE\n", argv0);
-	printf("       %s [-Vprv] list\n", argv0);
+	printf("usage: %s [-Vnpr] COMMAND [ARG ...]\n", argv0);
+	printf("       %s [-Vnpr] [flash|write|verify|reset] FILE\n", argv0);
+	printf("       %s [-Vnpr] list\n", argv0);
 
 	die("");
 }
@@ -707,6 +707,9 @@ main(int argc, char *argv[])
 		break;
 	case 'v':
 		do_verify = 1;
+		break;
+	case 'n':
+		do_verify = 0;
 		break;
 	case 'V':
 		version();
