@@ -95,6 +95,7 @@ static u8 isp_key[30]; /* all zero key */
 static int do_progress;
 static int do_reset;
 static int do_verify = 1;
+static const char *do_match;
 
 __noreturn static void die(const char *errstr, ...);
 __noreturn static void version(void);
@@ -671,13 +672,25 @@ config_show(struct isp_dev *dev)
 		printf("%.2x%c", cfg[i], ((i % 4) == 3) ? '\n' : ' ');
 }
 
+static struct isp_dev *
+dev_by_uid(const char *uid)
+{
+	size_t i;
+
+	for (i = 0; i < dev_count; i++)
+		if (strcmp(uid, dev_list[i].uid_str) == 0)
+			return &dev_list[i];
+
+	return NULL;
+}
+
 char *argv0;
 
 static void
 usage(void)
 {
-	printf("usage: %s [-Vnpr] COMMAND [ARG ...]\n", argv0);
-	printf("       %s [-Vnpr] [flash|write|verify|reset] FILE\n", argv0);
+	printf("usage: %s [-Vnpr] [-d <uid>] COMMAND [ARG ...]\n", argv0);
+	printf("       %s [-Vnpr] [-d <uid>] [flash|write|verify|reset] FILE\n", argv0);
 	printf("       %s [-Vnpr] list\n", argv0);
 
 	die("");
@@ -711,6 +724,9 @@ main(int argc, char *argv[])
 	case 'n':
 		do_verify = 0;
 		break;
+	case 'd':
+		do_match = EARGF(usage());
+		break;
 	case 'V':
 		version();
 	default:
@@ -739,8 +755,14 @@ main(int argc, char *argv[])
 		goto out;
 	}
 
-	/* for now select the first device */
+	/* by default select the first device */
 	dev = &dev_list[0];
+	if (do_match) {
+		dev = dev_by_uid(do_match);
+		if (!dev)
+			die("no device match for '%s'\n", do_match);
+	}
+
 	isp_key_init(dev);
 	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n",
 	       dev->btver >> 8, dev->btver & 0xff,

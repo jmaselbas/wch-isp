@@ -9,17 +9,24 @@ wch-isp \- firmware programmer for WCH microcontrollers
 .P
 .B wch-isp
 .RB [ \-Vnpr ]
+.RB [ \-d
+.BR <uid> ]
 .RB [ flash | write | verify | reset ]
 .I FILE
 .P
 .B wch-isp
 .RB [ \-Vnpr ]
+.RB [ \-d
+.BR <uid> ]
 .B list
 .SH DESCRIPTION
 .B wch-isp
 is an utility to write firmware into the flash of WCH microcontrollers, over USB.
 By default the flash content is verified after writing.
 .SH OPTIONS
+.TP
+.B \-d <uid>
+Select the device with the uid.
 .TP
 .B \-n
 Do not verify flash content after writing, verification is done by default.
