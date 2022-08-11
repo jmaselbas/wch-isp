@@ -29,9 +29,9 @@ This utility has only be tested on the CH32V103 & CH569W but should work on othe
     - wch-isp.exe -vr flash fullpath/file.bin
 
 ### CH569 Debug mode
-* If the CH569 config `debug` is `on/enabled` it is impossible to flash a program with `wch-isp` and it will return error "Fail to program chunk @ 0 error: e0 00" (the booloader refuse to flash anything when debug mode is on/enabled).
-* To check if the CH569 config `debug` state launch `wch-isp -c` and it will display the config of the CH569 including debug state (enabled or disabled)
-* To disable the debug mode launch `wch-isp debug-off`
+* If the CH569 config `debug` mode is `on/enabled` it is impossible to flash a program with `wch-isp` and it will return error "Fail to program chunk @ 0 error: e0 00" (the booloader refuse to flash anything when debug mode is `on/enabled`).
+* To check the CH569 config `debug` mode, launch `wch-isp -c` and it will display the config of the CH569 including debug state (`DEBUG_EN` `1: enabled` or `0: disabled`)
+* To disable the `debug` mode, launch `wch-isp debug-off`
 
 Example WCH569 config with debug enabled/on:
 ```
