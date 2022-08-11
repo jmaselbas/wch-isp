@@ -631,9 +631,26 @@ verify_flash(struct isp_dev *dev, const char *name)
 	free(bin);
 }
 
+static char *
+fmtb(char *b, size_t n, int p, u32 v)
+{
+	char *s = b + n;
+
+	if (p > 32) p = 32;
+	if (p > n)  p = n;
+
+	*--s = 0;
+	for (; b < s && v ; v >>= 1, p--)
+		*--s = '0' + (v & 1);
+	while (b < s && p-- > 0)
+		*--s = '0';
+	return s;
+}
+
 static void
 ch569_print_config(size_t len, u8 *cfg)
 {
+	char buf[4];
 	u32 nv;
 
 	if (len < 12)
@@ -649,7 +666,8 @@ ch569_print_config(size_t len, u8 *cfg)
 	       (nv & BIT(7)) ? "enabled" : "disabled");
 	printf("[29] LOCKUP_RST_EN %d: %s\n", !!(nv & BIT(29)),
 	       (nv & BIT(29)) ? "enabled" : "disabled");
-	printf("[31:30] USER_MEM %.2b: %s\n", (nv >> 30) & 0b11,
+	printf("[31:30] USER_MEM 0b%s: %s\n",
+	       fmtb(buf, sizeof(buf), 2, (nv >> 30) & 0b11),
 	       ((nv >> 30) & 0b11) == 0 ? "RAMX 32KB + ROM 96KB" :
 	       ((nv >> 30) & 0b11) == 1 ? "RAMX 64KB + ROM 64KB" :
 	       "RAMX 96KB + ROM 32KB");
