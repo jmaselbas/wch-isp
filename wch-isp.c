@@ -27,6 +27,7 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
+#define BIT(x)		(1UL << (x))
 #define MIN(a, b)	((a) < (b) ? (a) : (b))
 #define MAX(a, b)	((a) < (b) ? (b) : (a))
 #define LEN(a)		(sizeof(a) / sizeof(*a))
@@ -36,9 +37,6 @@ typedef uint32_t u32;
 
 #define MAX_PACKET_SIZE 64
 #define SECTOR_SIZE  1024
-
-#define BTVER_2_6 0x0206
-#define BTVER_2_7 0x0207
 
 /*
  *  All readable and writable registers.
@@ -72,7 +70,7 @@ typedef uint32_t u32;
 #define CMD_READ_OTP	0xc4
 #define CMD_SET_BAUD	0xc5
 
-#define BTVER_02_70	(0x00020700)
+#define BTVER_2_7 (0x00020700)
 
 #define ISP_VID 0x4348
 #define ISP_PID 0x55e0
@@ -426,17 +424,17 @@ cmd_read_conf(u16 cfgmask, size_t len, u8 *cfg)
 	return len;
 }
 
-static u16 read_btver(void)
+static u32 read_btver(void)
 {
 	u8 buf[4];
 
 #ifdef DEBUG
 	printf("read_btver\n");
 #endif
-	/* format: [0x00, major, minor, 0x00] */
+	/* format: [major, major, minor, minor] */
 	cmd_read_conf(CFG_MASK_BTVER, sizeof(buf), buf);
 
-	return (buf[1] << 8) | buf[2];
+	return ((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3]);
 }
 
 static void
@@ -494,7 +492,7 @@ usb_fini(void)
 static u8 dev_id;
 static u8 dev_type;
 static u8 dev_uid[8];
-static u16 dev_btver;
+static u32 dev_btver;
 static size_t dev_uid_len;
 static u8 isp_key[30]; /* all zero key */
 static u8 xor_key[8];
@@ -504,6 +502,7 @@ static struct dev *dev_db;
 static int do_progress;
 static int do_reset;
 static int do_verify;
+static int do_show_config;
 
 static size_t
 db_flash_size(void)
@@ -557,7 +556,10 @@ isp_init(void)
 
 	/* get the bootloader version */
 	dev_btver = read_btver();
-	printf_timing("bootloader: v%d.%d\n", dev_btver >> 8, dev_btver & 0xff);
+	printf_timing("bootloader: v%d%d.%d%d (0x%08X)\n", 
+		dev_btver >> 24, ((dev_btver & 0x00FF0000) >> 16), 
+		((dev_btver & 0x0000FF00) >> 8), dev_btver & 0xFF, 
+		dev_btver);
 
 	/* initialize xor_key */
 	for (sum = 0, i = 0; i < dev_uid_len; i++)
@@ -704,10 +706,55 @@ flash_file(const char *name)
 char *argv0;
 
 static void
+ch569_print_config(size_t len, u8 *cfg)
+{
+	u32 nv;
+
+	if (len < 12)
+		return;
+	/*
+	printf("cfg(Hex)=");	
+	for(int i = 0; i < 12; i++)
+		printf("%02X ", cfg[i]);	
+	printf("\n");
+	*/
+	nv = (cfg[8] << 0) | (cfg[9] << 8) | (cfg[10] << 16) | (cfg[11] << 24);
+	printf("nv=0x%08X\n", nv);
+	printf("[4] RESET_EN %d: %s\n", !!(nv & BIT(4)),
+	       (nv & BIT(4)) ? "enabled" : "disabled");
+	printf("[5] DEBUG_EN %d: %s\n", !!(nv & BIT(5)),
+	       (nv & BIT(5)) ? "enabled" : "disabled");
+	printf("[6] BOOT_EN %d: %s\n", !!(nv & BIT(6)),
+	       (nv & BIT(6)) ? "enabled" : "disabled");
+	printf("[7] CODE_READ_EN %d: %s\n", !!(nv & BIT(7)),
+	       (nv & BIT(7)) ? "enabled" : "disabled");
+	printf("[29] LOCKUP_RST_EN %d: %s\n", !!(nv & BIT(29)),
+	       (nv & BIT(29)) ? "enabled" : "disabled");
+	printf("[31:30] USER_MEM 0x%02X: %s\n", (nv >> 30) & 0b11,
+	       ((nv >> 30) & 0b11) == 0 ? "RAMX 32KB + ROM 96KB" :
+	       ((nv >> 30) & 0b11) == 1 ? "RAMX 64KB + ROM 64KB" :
+	       "RAMX 96KB + ROM 32KB");
+}
+
+static void
+config_show(void)
+{
+	u8 cfg[16];
+	size_t len;
+
+	len = cmd_read_conf(0x7, sizeof(cfg), cfg);
+	ch569_print_config(len, cfg);
+/*
+	for (int i = 0; i < len; i++)
+		printf("%.2x%c", cfg[i], ((i % 4) == 3) ? '\n' : ' ');
+*/
+}
+
+static void
 usage(void)
 {
-	printf("usage: %s [-Vprv] COMMAND [ARG ...]\n", argv0);
-	printf("       %s [-Vprv] flash FILE\n", argv0);
+	printf("usage: %s [-Vprvc] COMMAND [ARG ...]\n", argv0);
+	printf("       %s [-Vprvc] flash FILE\n", argv0);
 	die("");
 }
 
@@ -733,6 +780,9 @@ main(int argc, char *argv[])
 	case 'v':
 		do_verify = 1;
 		break;
+	case 'c':
+		do_show_config = 1;
+		break;
 	case 'V':
 		version_print();
 	default:
@@ -745,6 +795,9 @@ main(int argc, char *argv[])
 	printf("Start time %s\n", currTime);
 	usb_init();
 	isp_init();
+
+	if (do_show_config)
+		config_show();
 
 	if (argc < 1)
 		die("missing command\n");
