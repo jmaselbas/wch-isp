@@ -464,6 +464,37 @@ u8 cmd_debug_mode(u8 enable)
 	return buf[4] == 0; // success if this byte is zero
 }
 
+u8 cmd_set_flash_size(u8 flash_size_kb)
+{
+	u8 req[] = { 0x1f, 0x00 };
+	u8 buf[60];
+	size_t got;
+
+	isp_send_cmd(CMD_READ_CONFIG, sizeof(req), req);
+	got = isp_recv_cmd(CMD_READ_CONFIG, sizeof(buf), buf);
+	if (got < 2)
+		die("read conf fail: not received enough bytes\n");
+
+	u8 flash_size_config = 0x0f;
+	switch (flash_size_kb)
+	{
+		case 32: flash_size_config = 0xcf; break;
+		case 64: flash_size_config = 0x4f; break;
+		case 96: flash_size_config = 0x0f; break;
+		default:
+			break;
+	}
+
+	buf[13] = flash_size_config;
+
+	got = isp_send_cmd(CMD_WRITE_CONFIG, 14, buf);
+	got = usb_recv(6, buf);
+	if (got != 6)
+		die("send config command: wrong response length\n");
+
+	return buf[4] == 0; // success if this byte is zero
+}
+
 static u32 read_btver(void)
 {
 	u8 buf[4];
@@ -596,9 +627,9 @@ isp_init(void)
 
 	/* get the bootloader version */
 	dev_btver = read_btver();
-	printf_timing("bootloader: v%d%d.%d%d (0x%08X)\n", 
-		dev_btver >> 24, ((dev_btver & 0x00FF0000) >> 16), 
-		((dev_btver & 0x0000FF00) >> 8), dev_btver & 0xFF, 
+	printf_timing("bootloader: v%d%d.%d%d (0x%08X)\n",
+		dev_btver >> 24, ((dev_btver & 0x00FF0000) >> 16),
+		((dev_btver & 0x0000FF00) >> 8), dev_btver & 0xFF,
 		dev_btver);
 
 	/* initialize xor_key */
@@ -753,9 +784,9 @@ ch569_print_config(size_t len, u8 *cfg)
 	if (len < 12)
 		return;
 	/*
-	printf("cfg(Hex)=");	
+	printf("cfg(Hex)=");
 	for(int i = 0; i < 12; i++)
-		printf("%02X ", cfg[i]);	
+		printf("%02X ", cfg[i]);
 	printf("\n");
 	*/
 	nv = (cfg[8] << 0) | (cfg[9] << 8) | (cfg[10] << 16) | (cfg[11] << 24);
@@ -794,7 +825,7 @@ static void
 usage(void)
 {
 	printf("usage: %s [-Vprvc] COMMAND [ARG ...]\n", argv0);
-	printf("       %s [-Vprvc] flash|debug-on|debug-off FILE\n", argv0);
+	printf("       %s [-Vprvc] flash|debug-on|debug-off|flash32k|flash64k|flash96k FILE\n", argv0);
 	printf("-V means print version\n");
 	printf("-p means display progress\n");
 	printf("-r means do reset at end\n");
@@ -846,13 +877,12 @@ main(int argc, char *argv[])
 
 	if (argc < 1)
 		die("missing command\n");
+
 	if (strcmp(argv[0], "flash") == 0) {
 		if (argc < 2)
 			die("flash: missing file\n");
 		flash_file(argv[1]);
-	}
-
-	if (strcmp(argv[0], "debug-on") == 0) {
+	} else if (strcmp(argv[0], "debug-on") == 0) {
 		if (dev_id != 0x69)
 			die("This feature is currently only available for the CH569!");
 
@@ -861,9 +891,7 @@ main(int argc, char *argv[])
 		} else {
 			printf("failed to enable debug mode.\n");
 		}
-	}
-
-	if (strcmp(argv[0], "debug-off") == 0) {
+	} else if (strcmp(argv[0], "debug-off") == 0) {
 		if (dev_id != 0x69)
 			die("This feature is currently only available for the CH569!");
 
@@ -871,6 +899,21 @@ main(int argc, char *argv[])
 			printf("successfully disabled debug mode.\n");
 		} else {
 			printf("failed to disable debug mode.\n");
+		}
+	} else if (strncmp(argv[0], "flash", 5) == 0) {
+		if (dev_id != 0x69)
+			die("This feature is currently only available for the CH569!");
+
+		u8 flash_size_kb = 32;
+		if (strcmp(argv[0], "flash32k") == 0) flash_size_kb = 32;
+		else if (strcmp(argv[0], "flash64k") == 0) flash_size_kb = 64;
+		else if (strcmp(argv[0], "flash96k") == 0) flash_size_kb = 96;
+		else die("invalid flash size (only 32k, 64k, and 96k are supported).");
+
+		if (cmd_set_flash_size(flash_size_kb)) {
+			printf("successfully set flash size.\n");
+		} else {
+			printf("failed to set flash size.\n");
 		}
 	}
 
