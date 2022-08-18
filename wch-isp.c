@@ -82,9 +82,13 @@ struct isp_dev {
 	char uid_str[3 * 8];
 	u16 btver;
 	u8 xor_key[8];
-	struct db *db;
 	libusb_device_handle *usb_dev;
 	unsigned int kernel;
+	/* info filled from db */
+	const char *name;
+	u32 flash_size;
+	u32 eeprom_size;
+	u32 flash_sector_size;
 };
 struct isp_dev *dev_list;
 size_t dev_count;
@@ -429,17 +433,50 @@ usb_fini(void)
 static size_t
 db_flash_size(struct isp_dev *dev)
 {
-	if (dev->db && dev->db->flash_size > 0)
-		return dev->db->flash_size;
-	return -1;
+	return dev->flash_size;
 }
 
 static size_t
 db_flash_sector_size(struct isp_dev *dev)
 {
-	if (dev->db && dev->db->flash_sector_size > 0)
-		return dev->db->flash_sector_size;
-	return SECTOR_SIZE;
+	return dev->flash_sector_size;
+}
+
+static void
+isp_init_from_db(struct isp_dev *dev)
+{
+	struct db *db = NULL;
+	struct db_dev *db_dev = NULL;
+	size_t i;
+
+	dev->flash_sector_size = SECTOR_SIZE;
+	dev->name = "unknown";
+	dev->flash_size = 0xffff;
+	dev->eeprom_size = 0;
+
+	for (i = 0; i < LEN(devices); i++) {
+		if (devices[i].type == dev->type) {
+			db = &devices[i];
+			break;
+		}
+	}
+	if (db) {
+		for (db_dev = db->devs; db_dev->id != 0; db_dev++) {
+			if (db_dev->id == dev->id)
+				break;
+		}
+		if (db_dev->id == 0)
+			db_dev = NULL;
+	}
+
+	if (db) {
+		dev->flash_sector_size = db->flash_sector_size;
+	}
+	if (db_dev) {
+		dev->name = db_dev->name;
+		dev->flash_size = db_dev->flash_size;
+		dev->eeprom_size = db_dev->eeprom_size;
+	}
 }
 
 static void
@@ -449,15 +486,8 @@ isp_init(struct isp_dev *dev)
 
 	/* get the device type and id */
 	cmd_identify(dev, &dev->id, &dev->type);
-
 	/* match the detected device */
-	for (i = 0; i < LEN(devices); i++) {
-		if (devices[i].type == dev->type && devices[i].id == dev->id) {
-			dev->db = &devices[i];
-			break;
-		}
-	}
-
+	isp_init_from_db(dev);
 	/* get the bootloader version */
 	dev->btver = read_btver(dev);
 
@@ -768,7 +798,7 @@ main(int argc, char *argv[])
 			printf("%zd: BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n", i,
 			       dev->btver >> 8, dev->btver & 0xff,
 			       dev->uid_str, dev->type, dev->id,
-			       dev->db ? dev->db->name : "unknown");
+			       dev->name);
 		}
 		goto out;
 	}
@@ -785,7 +815,7 @@ main(int argc, char *argv[])
 	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n",
 	       dev->btver >> 8, dev->btver & 0xff,
 	       dev->uid_str, dev->type, dev->id,
-	       dev->db ? dev->db->name : "unknown");
+	       dev->name);
 
 	if ((strcmp(argv[0], "flash") == 0) ||
 	    (strcmp(argv[0], "write") == 0)) {
