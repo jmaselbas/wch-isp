@@ -1,23 +1,26 @@
 /* Copy me if you can. */
 
-#ifndef ARG_H__
-#define ARG_H__
+#ifndef ARG_H
+#define ARG_H
 
 extern char *argv0;
 
-#define ARGBEGIN {\
-char *_arg, **_argp, **_args;\
-for ((void)(argv0 = argv[0]), argc--, _args = _argp = ++argv; (_arg = *_argp); _argp++)\
-	if (_arg[0] == '-' && _arg[1] == '-' && _arg[2] == '\0')\
-		for (argc--, _argp++; (_arg = *_argp); _argp++)\
-			*(_args++) = *_argp;\
-	else if (_arg[0] == '-' && _arg[1] != '-' && _arg[1] != '\0')\
-		for (argc--, _arg++; *_arg; (*_arg)? _arg++ : _arg)\
-			switch (*_arg)
+#define ARGBEGIN {char *_arg, **_argp, **_args;				\
+	for (argv0 = *argv++, argc--, _args = _argp = argv;		\
+	     _arg = *_argp;		/* while != NULL */		\
+	     *_argp ? _argp++ : 0)	/* inc only if _argp != NULL */	\
+		if (*_arg == '-' && _arg[1] == '-' && _arg[2] == '\0')	\
+			for (argc--, _argp++;	/* skip the '--' arg */	\
+			     _arg = *_argp;				\
+			     *_argp ? _argp++ : 0)			\
+				*(_args++) = _arg; /* copy all args */	\
+		else if (*_arg == '-' && _arg[1] != '-' && _arg[1] != '\0') \
+			for (argc--, _arg++; *_arg; *_arg ? _arg++ : 0)	\
+				switch (*_arg)
 
-#define ARGLONG else if (_arg[0] == '-' && _arg[1] == '-' && _arg[2] != '\0')
+#define ARGLONG else if (*_arg == '-' && _arg[1] == '-' && _arg[2] != '\0')
 
-#define ARGEND	else *(_args++) = *_argp; }
+#define ARGEND	else *(_args++) = _arg; /* else copy the argument */ }
 
 #define ARGC()		*_arg
 #define ARGF()		((_arg[1])? (*_arg = 0, _arg + 1) :\
@@ -31,4 +34,4 @@ for ((void)(argv0 = argv[0]), argc--, _args = _argp = ++argv; (_arg = *_argp); _
 #define ARGLF()		(_argp ? (_argp++, *_argp) : NULL)
 #define EARGLF(x)	(_argp ? (_argp++, *_argp) : ((x), abort(), NULL))
 
-#endif /* ARG_H__ */
+#endif /* ARG_H */
