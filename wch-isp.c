@@ -521,8 +521,8 @@ isp_key_init(struct isp_dev *dev)
 		sum = 0;
 	} else {
 		/* bootloader version 2.6 (and maybe prior versions) send back
-		 * the a checksum of the xor_key. This response can be used to
-		 * make sure we are in sync. */
+		 * the checksum of xor_key. This response is used to make sure
+		 * we are in sync. */
 		for (sum = 0, i = 0; i < sizeof(dev->xor_key); i++)
 			sum += dev->xor_key[i];
 	}
