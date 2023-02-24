@@ -600,7 +600,7 @@ file_read_all(const char *name, size_t *size_p, void **bin_p)
 	void *bin;
 	int ret;
 
-	f = fopen(name, "r");
+	f = fopen(name, "rb");
 	if (f == NULL)
 		die("%s: %s\n", name, strerror(errno));
 
