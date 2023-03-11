@@ -26,11 +26,13 @@ struct db_dev {
 struct db {
 	u8 type;
 	u32 flash_sector_size;
+	const char *name;
 	const struct db_dev *devs;
 };
 
 const struct db devices[] = {
 	{ .type = 0x10, .flash_sector_size = 256,
+	  .name = "CH56x",
 	  .devs = (const struct db_dev[]){
 		{ 0x63, "CH563", SZ_224K, SZ_28K, },
 		{ 0x42, "CH563", SZ_224K, SZ_28K, },
@@ -45,6 +47,7 @@ const struct db devices[] = {
 		{ /* sentinel */ } }
 	},
 	{ .type = 0x11, .flash_sector_size = 1024,
+	  .name = "CH55x",
 	  .devs = (const struct db_dev[]){
 		{ 0x51, "CH551", SZ_10K,  128 },
 		{ 0x52, "CH552", SZ_14K,  128 },
@@ -57,18 +60,21 @@ const struct db devices[] = {
 		{ /* sentinel */ } }
 	},
 	{ .type = 0x14, .flash_sector_size = 1024,
+	  .name = "CH32F103",
 	  .devs = (const struct db_dev[]){
 		{ 0x3f, "CH32F103x6x6", SZ_32K },
 		{ 0x33, "CH32F103x8x6", SZ_64K },
 		{ /* sentinel */ } }
 	},
 	{ .type = 0x15, .flash_sector_size = 1024,
+	  .name = "CH32V103",
 	  .devs = (const struct db_dev[]){
 		{ 0x3f, "CH32V103x6x6", SZ_32K },
 		{ 0x33, "CH32V103x8x6", SZ_64K },
 		{ /* sentinel */ } }
 	},
 	{ .type = 0x19, .flash_sector_size = 1024,
+	  .name = "CH32V20x",
 	  .devs = (const struct db_dev[]){
 		{ 0x80, "CH32V208WBU6", SZ_480K },
 		{ 0x81, "CH32V208RBT6", SZ_128K },
