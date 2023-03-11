@@ -89,8 +89,8 @@ struct isp_dev {
 	u32 eeprom_size;
 	u32 flash_sector_size;
 };
-struct isp_dev *dev_list;
-size_t dev_count;
+static struct isp_dev *dev_list;
+static size_t dev_count;
 
 static libusb_context *usb;
 static u8 isp_key[30]; /* all zero key */
@@ -450,8 +450,8 @@ db_flash_sector_size(struct isp_dev *dev)
 static void
 isp_init_from_db(struct isp_dev *dev)
 {
-	struct db *db = NULL;
-	struct db_dev *db_dev = NULL;
+	const struct db *db = NULL;
+	const struct db_dev *db_dev = NULL;
 	size_t i;
 
 	dev->flash_sector_size = SECTOR_SIZE;
