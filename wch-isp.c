@@ -137,6 +137,12 @@ xcalloc(size_t nmemb, size_t size)
 	return p;
 }
 
+static int
+streq(const char *s1, const char *s2)
+{
+	return strcmp(s1, s2) == 0;
+}
+
 static size_t
 isp_send_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data)
 {
@@ -732,7 +738,7 @@ dev_by_uid(const char *uid)
 	size_t i;
 
 	for (i = 0; i < dev_count; i++)
-		if (strcmp(uid, dev_list[i].uid_str) == 0)
+		if (streq(uid, dev_list[i].uid_str))
 			return &dev_list[i];
 
 	return NULL;
@@ -809,7 +815,7 @@ main(int argc, char *argv[])
 	for (i = 0; i < dev_count; i++)
 		isp_init(&dev_list[i]);
 
-	if (strcmp(argv[0], "list") == 0) {
+	if (streq(argv[0], "list")) {
 		for (i = 0; i < dev_count; i++) {
 			dev = &dev_list[i];
 			printf("%zd: BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n", i,
@@ -834,21 +840,20 @@ main(int argc, char *argv[])
 	       dev->uid_str, dev->type, dev->id,
 	       dev->name);
 
-	if ((strcmp(argv[0], "flash") == 0) ||
-	    (strcmp(argv[0], "write") == 0)) {
+	if (streq(argv[0], "flash") || streq(argv[0], "write")) {
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
 		write_flash(dev, argv[1]);
 	}
-	if (strcmp(argv[0], "verify") == 0) {
+	if (streq(argv[0], "verify")) {
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
 		verify_flash(dev, argv[1]);
 	}
-	if (strcmp(argv[0], "reset") == 0) {
+	if (streq(argv[0], "reset")) {
 		cmd_isp_end(dev, 1);
 	}
-	if (strcmp(argv[0], "config") == 0) {
+	if (streq(argv[0], "config")) {
 		config_show(dev);
 	}
 
