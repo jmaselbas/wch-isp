@@ -9,7 +9,6 @@
 #include <errno.h>
 #include <libusb.h>
 
-static void usage(void);
 #include "arg.h"
 
 #define __noreturn __attribute__((noreturn))
@@ -103,7 +102,7 @@ static const char *do_match;
 
 __noreturn static void die(const char *errstr, ...);
 __noreturn static void version(void);
-__noreturn static void usage(void);
+__noreturn static void usage(int help);
 static void *xcalloc(size_t nmemb, size_t size);
 
 static void usb_init(void);
@@ -735,11 +734,20 @@ dev_by_uid(const char *uid)
 char *argv0;
 
 static void
-usage(void)
+usage(int help)
 {
 	printf("usage: %s [-Vnpr] [-d <uid>] COMMAND [ARG ...]\n", argv0);
 	printf("       %s [-Vnpr] [-d <uid>] [flash|write|verify|reset] FILE\n", argv0);
 	printf("       %s [-Vnpr] list\n", argv0);
+	if (!help)
+		die("");
+
+	printf("options:\n");
+	printf("  -d <uid> Select the usb device that matches the uid\n");
+	printf("  -n       No verify after writing to flash, done by default\n");
+	printf("  -p       Print a progress-bar during command operation\n");
+	printf("  -r       Reset after command completed\n");
+	printf("  -V       Print version and exits\n");
 
 	die("");
 }
@@ -773,12 +781,14 @@ main(int argc, char *argv[])
 		do_verify = 0;
 		break;
 	case 'd':
-		do_match = EARGF(usage());
+		do_match = EARGF(usage(0));
 		break;
 	case 'V':
 		version();
+	case 'h':
+		usage(1);
 	default:
-		usage();
+		usage(0);
 	} ARGEND;
 
 	usb_init();
