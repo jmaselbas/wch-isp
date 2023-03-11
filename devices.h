@@ -22,7 +22,7 @@ struct db_dev {
 	u32 eeprom_size;
 };
 
-/* record for a device familly */
+/* record for a device family */
 struct db {
 	u8 type;
 	u32 flash_sector_size;
