@@ -660,6 +660,13 @@ verify_flash(struct isp_dev *dev, const char *name)
 	free(bin);
 }
 
+/**
+ * fmtb formating function to print a binary number to a char buf
+ * b the output buffer
+ * n the buffer size
+ * p the "precision", how much bit to be printed
+ * v the value to be printed
+ */
 static char *
 fmtb(char *b, size_t n, int p, u32 v)
 {
@@ -668,9 +675,9 @@ fmtb(char *b, size_t n, int p, u32 v)
 	if ((size_t)p > 32) p = 32;
 	if ((size_t)p > n)  p = n;
 
-	*--s = 0;
+	*--s = '\0';
 	for (; b < s && v ; v >>= 1, p--)
-		*--s = '0' + (v & 1);
+		*--s = (v & 1) ? '1' : '0';
 	while (b < s && p-- > 0)
 		*--s = '0';
 	return s;
