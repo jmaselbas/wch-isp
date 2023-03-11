@@ -18,9 +18,9 @@ INCS = `$(PKG_CONFIG) --cflags libusb-1.0`
 LIBS = `$(PKG_CONFIG) --libs libusb-1.0`
 
 # Flags
-CPPFLAGS = -DVERSION=\"$(VERSION)\"
-CFLAGS = -Wall -O2 $(INCS)
-LDFLAGS = $(LIBS)
+WCHISP_CPPFLAGS = -DVERSION=\"$(VERSION)\" $(CPPFLAGS)
+WCHISP_CFLAGS = -Wall -O2 $(INCS) $(CFLAGS)
+WCHISP_LDFLAGS = $(LIBS) $(LDFLAGS)
 
 SRC = wch-isp.c
 HDR = arg.h devices.h
@@ -34,7 +34,9 @@ all: $(BIN)
 $(OBJ): arg.h devices.h
 
 $(BIN): $(OBJ)
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CC) -o $@ $^ $(WCHISP_LDFLAGS)
+.c.o:
+	$(CC) $(WCHISP_CFLAGS) $(WCHISP_CPPFLAGS) -c $<
 
 install:
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
