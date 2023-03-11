@@ -27,12 +27,14 @@ struct db {
 	u8 type;
 	u32 flash_sector_size;
 	const char *name;
+	int (*show_conf)(struct isp_dev *dev, size_t len, u8 *cfg);
 	const struct db_dev *devs;
 };
 
 const struct db devices[] = {
 	{ .type = 0x10, .flash_sector_size = 256,
 	  .name = "CH56x",
+	  .show_conf = ch56x_show_conf,
 	  .devs = (const struct db_dev[]){
 		{ 0x63, "CH563", SZ_224K, SZ_28K, },
 		{ 0x42, "CH563", SZ_224K, SZ_28K, },

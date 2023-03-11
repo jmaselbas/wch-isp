@@ -29,6 +29,8 @@ typedef uint32_t u32;
 #define LEN(a)		(sizeof(a) / sizeof(*a))
 #define ALIGN(x, a)	(((x) + ((a) - 1)) & ~((a) - 1))
 
+struct isp_dev;
+static int ch56x_show_conf(struct isp_dev *dev, size_t len, u8 *cfg);
 #include "devices.h"
 
 #define MAX_PACKET_SIZE 64
@@ -84,6 +86,7 @@ struct isp_dev {
 	libusb_device_handle *usb_dev;
 	unsigned int kernel;
 	/* info filled from db */
+	const struct db *db; /* device family */
 	const char *name;
 	u32 flash_size;
 	u32 eeprom_size;
@@ -461,7 +464,7 @@ isp_init_from_db(struct isp_dev *dev)
 
 	for (i = 0; i < LEN(devices); i++) {
 		if (devices[i].type == dev->type) {
-			db = &devices[i];
+			dev->db = db = &devices[i];
 			break;
 		}
 	}
@@ -689,14 +692,20 @@ fmtb(char *b, size_t n, int p, u32 v)
 	return s;
 }
 
-static void
-ch569_print_config(size_t len, u8 *cfg)
+static int
+ch56x_show_conf(struct isp_dev *dev, size_t len, u8 *cfg)
 {
 	char buf[4];
 	u32 nv;
 
+	if (!(dev->type == 0x10 && dev->id == 0x69)) {
+		fprintf(stderr, "FIXME: config is only supported on CH569\n");
+		return 1;
+	}
+
 	if (len < 12)
-		return;
+		die("config: invalid length\n");
+
 	nv = (cfg[8] << 0) | (cfg[9] << 8) | (cfg[10] << 16) | (cfg[11] << 24);
 	printf("[4] RESET_EN %d: %s\n", !!(nv & BIT(4)),
 	       (nv & BIT(4)) ? "enabled" : "disabled");
@@ -713,6 +722,8 @@ ch569_print_config(size_t len, u8 *cfg)
 	       ((nv >> 30) & 0b11) == 0 ? "RAMX 32KB + ROM 96KB" :
 	       ((nv >> 30) & 0b11) == 1 ? "RAMX 64KB + ROM 64KB" :
 	       "RAMX 96KB + ROM 32KB");
+
+	return 0;
 }
 
 static void
@@ -720,12 +731,14 @@ config_show(struct isp_dev *dev)
 {
 	u8 cfg[16];
 	size_t len, i;
+	int ret;
 
 	len = cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
 
-	if (dev->type == 0x10 && dev->id == 0x69) {
-		ch569_print_config(len, cfg);
-		return;
+	if (dev->db && dev->db->show_conf) {
+		ret = dev->db->show_conf(dev, len, cfg);
+		if (ret == 0)
+			return;
 	}
 
 	for (i = 0; i < len; i++)
