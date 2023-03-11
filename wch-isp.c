@@ -143,7 +143,7 @@ isp_send_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data)
 	u8 buf[64];
 	int ret, got = 0;
 
-	if ((len + 3) > sizeof(buf))
+	if ((size_t)(len + 3) > sizeof(buf))
 		die("isp_send_cmd: invalid argument, length %d\n", len);
 
 	buf[0] = cmd;
@@ -173,7 +173,7 @@ isp_recv_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data)
 	int ret, got = 0;
 	u16 hdrlen;
 
-	if ((len + 4) > sizeof(buf))
+	if ((size_t)(len + 4) > sizeof(buf))
 		die("isp_recv_cmd: invalid argument, length %d\n", len);
 
 	ret = libusb_bulk_transfer(dev->usb_dev, ISP_EP_IN, buf, len + 4, &got, 10000);
@@ -665,8 +665,8 @@ fmtb(char *b, size_t n, int p, u32 v)
 {
 	char *s = b + n;
 
-	if (p > 32) p = 32;
-	if (p > n)  p = n;
+	if ((size_t)p > 32) p = 32;
+	if ((size_t)p > n)  p = n;
 
 	*--s = 0;
 	for (; b < s && v ; v >>= 1, p--)
