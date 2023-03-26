@@ -13,12 +13,6 @@
 
 #define __noreturn __attribute__((noreturn))
 
-#ifdef DEBUG
-#define dbg_printf printf
-#else
-#define dbg_printf(...) do { ; } while(0)
-#endif
-
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -98,6 +92,7 @@ static size_t dev_count;
 static libusb_context *usb;
 static u8 isp_key[30]; /* all zero key */
 
+static int dbg_enable;
 static int do_progress;
 static int do_reset;
 static int do_verify = 1;
@@ -113,6 +108,7 @@ static void usb_fini(void);
 static void usb_open(struct isp_dev *dev, libusb_device *usb_dev);
 static void usb_close(struct isp_dev *dev);
 
+static void dbg_isp_cmd(const char *dir, u8 cmd, u16 len, u8 *data);
 static void isp_init(struct isp_dev *dev);
 static void isp_key_init(struct isp_dev *dev);
 static void isp_fini(struct isp_dev *dev);
@@ -129,6 +125,20 @@ die(const char *errstr, ...)
 	va_end(ap);
 
 	exit(1);
+}
+
+static void
+dbg_isp_cmd(const char *dir, u8 cmd, u16 len, u8 *data)
+{
+	u16 i;
+
+	if (!dbg_enable)
+		return;
+
+	fprintf(stderr, "isp %s cmd %.2x len %.4x : ", dir, cmd, len);
+	for (i = 0; i < len; i++)
+		fprintf(stderr, "%.2x", data[i]);
+	fprintf(stderr, "\n");
 }
 
 static void *
@@ -164,10 +174,7 @@ isp_send_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data)
 	if (len != 0)
 		memcpy(&buf[3], data, len);
 
-	dbg_printf("isp send cmd %.2x len %.2x%.2x : ", buf[0], buf[2], buf[1]);
-	for (int i = 0; i < len; i++)
-		dbg_printf("%.2x", data[i]);
-	dbg_printf("\n");
+	dbg_isp_cmd("send", cmd, len, data);
 
 	ret = libusb_bulk_transfer(dev->usb_dev, ISP_EP_OUT, buf, len + 3, &got, 10000);
 	if (ret)
@@ -205,10 +212,7 @@ isp_recv_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data)
 	if (data != NULL)
 		memcpy(data, buf + 4, len);
 
-	dbg_printf("isp recv cmd %.2x status %.2x len %.2x%.2x : ", buf[0], buf[1], buf[3], buf[2]);
-	for (int i = 0; i < len; i++)
-		dbg_printf("%.2x", data[i]);
-	dbg_printf("\n");
+	dbg_isp_cmd("recv", cmd, len, data);
 
 	return got;
 }
@@ -762,9 +766,9 @@ char *argv0;
 static void
 usage(int help)
 {
-	printf("usage: %s [-Vnpr] [-d <uid>] COMMAND [ARG ...]\n", argv0);
-	printf("       %s [-Vnpr] [-d <uid>] [flash|write|verify|reset] FILE\n", argv0);
-	printf("       %s [-Vnpr] list\n", argv0);
+	printf("usage: %s [-VDnpr] [-d <uid>] COMMAND [ARG ...]\n", argv0);
+	printf("       %s [-VDnpr] [-d <uid>] [flash|write|verify|reset] FILE\n", argv0);
+	printf("       %s [-VDnpr] list\n", argv0);
 	if (!help)
 		die("");
 
@@ -773,6 +777,7 @@ usage(int help)
 	printf("  -n       No verify after writing to flash, done by default\n");
 	printf("  -p       Print a progress-bar during command operation\n");
 	printf("  -r       Reset after command completed\n");
+	printf("  -D       Print raw isp command (for debug)\n");
 	printf("  -V       Print version and exits\n");
 
 	die("");
@@ -808,6 +813,9 @@ main(int argc, char *argv[])
 		break;
 	case 'd':
 		do_match = EARGF(usage(0));
+		break;
+	case 'D':
+		dbg_enable = 1;
 		break;
 	case 'V':
 		version();
