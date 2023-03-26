@@ -259,6 +259,7 @@ static void
 cmd_erase(struct isp_dev *dev, u32 sectors)
 {
 	u8 sec[4];
+	u8 rsp[2];
 
 	sec[0] = (sectors >>  0) & 0xff;
 	sec[1] = (sectors >>  8) & 0xff;
@@ -266,7 +267,10 @@ cmd_erase(struct isp_dev *dev, u32 sectors)
 	sec[3] = (sectors >> 24) & 0xff;
 
 	isp_send_cmd(dev, CMD_ERASE, sizeof(sec), sec);
-	isp_recv_cmd(dev, CMD_ERASE, 2, sec); /* receive two 0 bytes */
+	isp_recv_cmd(dev, CMD_ERASE, 2, rsp);
+
+	if (rsp[0] != 0 || rsp[1] != 0)
+		die("Fail to erase, error: %.2x %.2x\n", rsp[0], rsp[1]);
 }
 
 static size_t
