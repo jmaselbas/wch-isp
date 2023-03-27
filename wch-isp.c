@@ -767,6 +767,15 @@ dev_by_uid(const char *uid)
 	return NULL;
 }
 
+static void
+erase_all(struct isp_dev *dev)
+{
+	size_t size = db_flash_size(dev);
+	size_t sector_size = db_flash_sector_size(dev);
+	u32 nr_sectors = size / sector_size;
+	cmd_erase(dev, nr_sectors);
+}
+
 char *argv0;
 
 static void
@@ -876,6 +885,9 @@ main(int argc, char *argv[])
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
 		verify_flash(dev, argv[1]);
+	}
+	else if (streq(argv[0], "erase")) {
+		erase_all(dev);
 	}
 	else if (streq(argv[0], "reset")) {
 		cmd_isp_end(dev, 1);
