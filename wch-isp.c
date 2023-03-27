@@ -218,7 +218,7 @@ isp_recv_cmd(struct isp_dev *dev, u8 cmd, u16 len, u8 *data)
 }
 
 static void
-cmd_identify(struct isp_dev *dev, u8 *dev_id, u8 *dev_type)
+isp_cmd_identify(struct isp_dev *dev, u8 *dev_id, u8 *dev_type)
 {
 	u8 buf[] = "\0\0MCU ISP & WCH.CN";
 	u8 ids[2];
@@ -236,7 +236,7 @@ cmd_identify(struct isp_dev *dev, u8 *dev_id, u8 *dev_type)
 }
 
 static void
-cmd_isp_key(struct isp_dev *dev, size_t len, u8 *key, u8 *sum)
+isp_cmd_isp_key(struct isp_dev *dev, size_t len, u8 *key, u8 *sum)
 {
 	u8 rsp[2];
 
@@ -247,7 +247,7 @@ cmd_isp_key(struct isp_dev *dev, size_t len, u8 *key, u8 *sum)
 }
 
 static void
-cmd_isp_end(struct isp_dev *dev, u8 reason)
+isp_cmd_isp_end(struct isp_dev *dev, u8 reason)
 {
 	u8 buf[2];
 
@@ -256,7 +256,7 @@ cmd_isp_end(struct isp_dev *dev, u8 reason)
 }
 
 static void
-cmd_erase(struct isp_dev *dev, u32 sectors)
+isp_cmd_erase(struct isp_dev *dev, u32 sectors)
 {
 	u8 sec[4];
 	u8 rsp[2];
@@ -274,7 +274,7 @@ cmd_erase(struct isp_dev *dev, u32 sectors)
 }
 
 static size_t
-cmd_program(struct isp_dev *dev, uint32_t addr, size_t len, const u8 *data, const u8 key[8])
+isp_cmd_program(struct isp_dev *dev, uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 {
 	u8 unk[61];
 	u8 rsp[2];
@@ -300,7 +300,7 @@ cmd_program(struct isp_dev *dev, uint32_t addr, size_t len, const u8 *data, cons
 }
 
 static size_t
-cmd_verify(struct isp_dev *dev, uint32_t addr, size_t len, const u8 *data, const u8 key[8])
+isp_cmd_verify(struct isp_dev *dev, uint32_t addr, size_t len, const u8 *data, const u8 key[8])
 {
 	u8 unk[61];
 	u8 rsp[2];
@@ -326,7 +326,7 @@ cmd_verify(struct isp_dev *dev, uint32_t addr, size_t len, const u8 *data, const
 }
 
 static size_t
-cmd_read_conf(struct isp_dev *dev, u16 cfgmask, size_t len, u8 *cfg)
+isp_cmd_read_conf(struct isp_dev *dev, u16 cfgmask, size_t len, u8 *cfg)
 {
 	u8 buf[60];
 	u8 req[2];
@@ -350,7 +350,7 @@ cmd_read_conf(struct isp_dev *dev, u16 cfgmask, size_t len, u8 *cfg)
 }
 
 static void
-cmd_write_conf(struct isp_dev *dev, u16 cfgmask, size_t len, u8 *cfg)
+isp_cmd_write_conf(struct isp_dev *dev, u16 cfgmask, size_t len, u8 *cfg)
 {
 	u8 req[60];
 	u8 rsp[2];
@@ -371,7 +371,7 @@ read_btver(struct isp_dev *dev)
 	u8 buf[4];
 
 	/* format: [0x00, major, minor, 0x00] */
-	cmd_read_conf(dev, CFG_MASK_BTVER, sizeof(buf), buf);
+	isp_cmd_read_conf(dev, CFG_MASK_BTVER, sizeof(buf), buf);
 
 	return (buf[1] << 8) | buf[2];
 }
@@ -382,12 +382,12 @@ remove_wp(struct isp_dev *dev)
 	u8 cfg[16];
 	size_t len;
 
-	len = cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
+	len = isp_cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
 	if (cfg[0] == 0xa5) {
 		printf("write protection already off\n");
 	} else {
 		cfg[0] = 0xa5;
-		cmd_write_conf(dev, 0x7, len, cfg);
+		isp_cmd_write_conf(dev, 0x7, len, cfg);
 		printf("write protection disabled\n");
 	}
 }
@@ -533,14 +533,14 @@ isp_init(struct isp_dev *dev)
 	size_t i;
 
 	/* get the device type and id */
-	cmd_identify(dev, &dev->id, &dev->type);
+	isp_cmd_identify(dev, &dev->id, &dev->type);
 	/* match the detected device */
 	isp_init_from_db(dev);
 	/* get the bootloader version */
 	dev->btver = read_btver(dev);
 
 	/* get the device uid */
-	cmd_read_conf(dev, CFG_MASK_UID, sizeof(dev->uid), dev->uid);
+	isp_cmd_read_conf(dev, CFG_MASK_UID, sizeof(dev->uid), dev->uid);
 
 	for (i = 0; i < sizeof(dev->uid); i++) {
 		snprintf(dev->uid_str + 3 * i, sizeof(dev->uid_str) - 3 * i,
@@ -562,7 +562,7 @@ isp_key_init(struct isp_dev *dev)
 	dev->xor_key[7] = dev->xor_key[0] + dev->id;
 
 	/* send the isp key */
-	cmd_isp_key(dev, sizeof(isp_key), isp_key, &rsp);
+	isp_cmd_isp_key(dev, sizeof(isp_key), isp_key, &rsp);
 
 	if (dev->btver >= BTVER_2_7) {
 		/* bootloader version 2.7 (and maybe onward) simply send zero */
@@ -603,16 +603,16 @@ isp_flash(struct isp_dev *dev, size_t size, u8 *data)
 	size_t rem = size;
 	size_t len;
 
-	cmd_erase(dev, nr_sectors);
+	isp_cmd_erase(dev, nr_sectors);
 
 	while (off < size) {
 		progress_bar("write", off, size);
 
-		len = cmd_program(dev, off, rem, data + off, dev->xor_key);
+		len = isp_cmd_program(dev, off, rem, data + off, dev->xor_key);
 		off += len;
 		rem -= len;
 	}
-	cmd_program(dev, off, 0, NULL, dev->xor_key);
+	isp_cmd_program(dev, off, 0, NULL, dev->xor_key);
 	progress_bar("write", size, size);
 }
 
@@ -626,7 +626,7 @@ isp_verify(struct isp_dev *dev, size_t size, u8 *data)
 	while (off < size) {
 		progress_bar("verify", off, size);
 
-		len = cmd_verify(dev, off, rem, data + off, dev->xor_key);
+		len = isp_cmd_verify(dev, off, rem, data + off, dev->xor_key);
 		off += len;
 		rem -= len;
 	}
@@ -637,7 +637,7 @@ static void
 isp_fini(struct isp_dev *dev)
 {
 	if (do_reset)
-		cmd_isp_end(dev, 1);
+		isp_cmd_isp_end(dev, 1);
 }
 
 static void
@@ -775,7 +775,7 @@ config_show(struct isp_dev *dev)
 	size_t len, i;
 	int ret;
 
-	len = cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
+	len = isp_cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
 
 	if (dev->db && dev->db->show_conf) {
 		ret = dev->db->show_conf(dev, len, cfg);
@@ -805,7 +805,7 @@ erase_all(struct isp_dev *dev)
 	size_t size = db_flash_size(dev);
 	size_t sector_size = db_flash_sector_size(dev);
 	u32 nr_sectors = size / sector_size;
-	cmd_erase(dev, nr_sectors);
+	isp_cmd_erase(dev, nr_sectors);
 }
 
 char *argv0;
@@ -924,7 +924,7 @@ main(int argc, char *argv[])
 		erase_all(dev);
 	}
 	else if (streq(argv[0], "reset")) {
-		cmd_isp_end(dev, 1);
+		isp_cmd_isp_end(dev, 1);
 	}
 	else if (streq(argv[0], "config")) {
 		config_show(dev);
