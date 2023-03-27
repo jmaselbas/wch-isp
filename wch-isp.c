@@ -349,6 +349,22 @@ cmd_read_conf(struct isp_dev *dev, u16 cfgmask, size_t len, u8 *cfg)
 	return len;
 }
 
+static void
+cmd_write_conf(struct isp_dev *dev, u16 cfgmask, size_t len, u8 *cfg)
+{
+	u8 req[60];
+	u8 rsp[2];
+
+	req[0] = (cfgmask >>  0) & 0xff;
+	req[1] = (cfgmask >>  8) & 0xff;
+
+	len = MIN(sizeof(req) - 2, len);
+	memcpy(&req[2], cfg, len);
+
+	isp_send_cmd(dev, CMD_WRITE_CONFIG, len + 2, req);
+	isp_recv_cmd(dev, CMD_WRITE_CONFIG, sizeof(rsp), rsp);
+}
+
 static u16
 read_btver(struct isp_dev *dev)
 {
@@ -358,6 +374,22 @@ read_btver(struct isp_dev *dev)
 	cmd_read_conf(dev, CFG_MASK_BTVER, sizeof(buf), buf);
 
 	return (buf[1] << 8) | buf[2];
+}
+
+static void
+remove_wp(struct isp_dev *dev)
+{
+	u8 cfg[16];
+	size_t len;
+
+	len = cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
+	if (cfg[0] == 0xa5) {
+		printf("write protection already off\n");
+	} else {
+		cfg[0] = 0xa5;
+		cmd_write_conf(dev, 0x7, len, cfg);
+		printf("write protection disabled\n");
+	}
 }
 
 static void
@@ -894,6 +926,9 @@ main(int argc, char *argv[])
 	}
 	else if (streq(argv[0], "config")) {
 		config_show(dev);
+	}
+	else if (streq(argv[0], "remove-wp")) {
+		remove_wp(dev);
 	}
 	else {
 		die("%s: invalid command\n", argv[0]);
