@@ -872,16 +872,19 @@ main(int argc, char *argv[])
 			die("%s: missing file\n", argv[0]);
 		write_flash(dev, argv[1]);
 	}
-	if (streq(argv[0], "verify")) {
+	else if (streq(argv[0], "verify")) {
 		if (argc < 2)
 			die("%s: missing file\n", argv[0]);
 		verify_flash(dev, argv[1]);
 	}
-	if (streq(argv[0], "reset")) {
+	else if (streq(argv[0], "reset")) {
 		cmd_isp_end(dev, 1);
 	}
-	if (streq(argv[0], "config")) {
+	else if (streq(argv[0], "config")) {
 		config_show(dev);
+	}
+	else {
+		die("%s: invalid command\n", argv[0]);
 	}
 
 	isp_fini(dev);
