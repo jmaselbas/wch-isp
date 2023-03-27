@@ -635,9 +635,11 @@ file_read_all(const char *name, size_t *size_p, void **bin_p)
 	if (bin == NULL)
 		die("calloc: %s\n", strerror(errno));
 
-	ret = fread(bin, len, 1, f);
-	if (ret != 1)
-		die("fread: %s\n", strerror(errno));
+	if (len > 0) {
+		ret = fread(bin, len, 1, f);
+		if (ret != 1)
+			die("fread: %s\n", strerror(errno));
+	}
 
 	fclose(f);
 
