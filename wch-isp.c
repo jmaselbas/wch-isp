@@ -12,6 +12,7 @@
 #include "arg.h"
 
 #define __noreturn __attribute__((noreturn))
+#define __unused __attribute__((unused))
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -377,7 +378,7 @@ read_btver(struct isp_dev *dev)
 }
 
 static void
-cmd_remove_wp(struct isp_dev *dev)
+cmd_remove_wp(struct isp_dev *dev, __unused int argc, __unused char **argv)
 {
 	u8 cfg[16];
 	size_t len;
@@ -680,10 +681,15 @@ file_read_all(const char *name, size_t *size_p, void **bin_p)
 }
 
 static void
-cmd_write_flash(struct isp_dev *dev, const char *name)
+cmd_write_flash(struct isp_dev *dev, int argc, char **argv)
 {
+	const char *name;
 	size_t size;
 	void *bin;
+
+	if (argc < 2)
+		die("%s: missing file\n", argv[0]);
+	name = argv[1];
 
 	file_read_all(name, &size, &bin);
 	if (size > db_flash_size(dev))
@@ -697,10 +703,15 @@ cmd_write_flash(struct isp_dev *dev, const char *name)
 }
 
 static void
-cmd_verify_flash(struct isp_dev *dev, const char *name)
+cmd_verify_flash(struct isp_dev *dev, int argc, char **argv)
 {
+	const char *name;
 	size_t size;
 	void *bin;
+
+	if (argc < 2)
+		die("%s: missing file\n", argv[0]);
+	name = argv[1];
 
 	file_read_all(name, &size, &bin);
 	if (size > db_flash_size(dev))
@@ -769,7 +780,7 @@ ch56x_show_conf(struct isp_dev *dev, size_t len, u8 *cfg)
 }
 
 static void
-cmd_config_show(struct isp_dev *dev)
+cmd_config_show(struct isp_dev *dev, __unused int argc, __unused char **argv)
 {
 	u8 cfg[16];
 	size_t len, i;
@@ -800,12 +811,18 @@ dev_by_uid(const char *uid)
 }
 
 static void
-cmd_erase_all(struct isp_dev *dev)
+cmd_erase_all(struct isp_dev *dev, __unused int argc, __unused char **argv)
 {
 	size_t size = db_flash_size(dev);
 	size_t sector_size = db_flash_sector_size(dev);
 	u32 nr_sectors = size / sector_size;
 	isp_cmd_erase(dev, nr_sectors);
+}
+
+static void
+cmd_reset(struct isp_dev *dev, __unused int argc, __unused char **argv)
+{
+	isp_cmd_isp_end(dev, 1);
 }
 
 char *argv0;
@@ -839,8 +856,21 @@ version(void)
 	die("");
 }
 
+static const struct {
+	const char *name;
+	void (*func)(struct isp_dev *dev, int argc, char **argv);
+} cmds[] = {
+	{ "flash", cmd_write_flash },
+	{ "write", cmd_write_flash },
+	{ "verify", cmd_verify_flash },
+	{ "erase", cmd_erase_all },
+	{ "reset", cmd_reset },
+	{ "config", cmd_config_show },
+	{ "remove-wp", cmd_remove_wp },
+};
+
 int
-main(int argc, char *argv[])
+main(int argc, char **argv)
 {
 	struct isp_dev *dev;
 	size_t i;
@@ -910,31 +940,14 @@ main(int argc, char *argv[])
 	       dev->uid_str, dev->type, dev->id,
 	       dev->name);
 
-	if (streq(argv[0], "flash") || streq(argv[0], "write")) {
-		if (argc < 2)
-			die("%s: missing file\n", argv[0]);
-		cmd_write_flash(dev, argv[1]);
+	for (i = 0; i < LEN(cmds); i++) {
+		if (streq(argv[0], cmds[i].name)) {
+			cmds[i].func(dev, argc, argv);
+			break;
+		}
 	}
-	else if (streq(argv[0], "verify")) {
-		if (argc < 2)
-			die("%s: missing file\n", argv[0]);
-		cmd_verify_flash(dev, argv[1]);
-	}
-	else if (streq(argv[0], "erase")) {
-		cmd_erase_all(dev);
-	}
-	else if (streq(argv[0], "reset")) {
-		isp_cmd_isp_end(dev, 1);
-	}
-	else if (streq(argv[0], "config")) {
-		cmd_config_show(dev);
-	}
-	else if (streq(argv[0], "remove-wp")) {
-		cmd_remove_wp(dev);
-	}
-	else {
+	if (i == LEN(cmds))
 		die("%s: invalid command\n", argv[0]);
-	}
 
 	isp_fini(dev);
 out:
