@@ -378,22 +378,6 @@ read_btver(struct isp_dev *dev)
 }
 
 static void
-cmd_remove_wp(struct isp_dev *dev, __unused int argc, __unused char **argv)
-{
-	u8 cfg[16];
-	size_t len;
-
-	len = isp_cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
-	if (cfg[0] == 0xa5) {
-		printf("write protection already off\n");
-	} else {
-		cfg[0] = 0xa5;
-		isp_cmd_write_conf(dev, 0x7, len, cfg);
-		printf("write protection disabled\n");
-	}
-}
-
-static void
 usb_init(void)
 {
 	struct libusb_device_descriptor desc;
@@ -798,16 +782,20 @@ cmd_config_show(struct isp_dev *dev, __unused int argc, __unused char **argv)
 		printf("%.2x%c", cfg[i], ((i % 4) == 3) ? '\n' : ' ');
 }
 
-static struct isp_dev *
-dev_by_uid(const char *uid)
+static void
+cmd_remove_wp(struct isp_dev *dev, __unused int argc, __unused char **argv)
 {
-	size_t i;
+	u8 cfg[16];
+	size_t len;
 
-	for (i = 0; i < dev_count; i++)
-		if (streq(uid, dev_list[i].uid_str))
-			return &dev_list[i];
-
-	return NULL;
+	len = isp_cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
+	if (cfg[0] == 0xa5) {
+		printf("write protection already off\n");
+	} else {
+		cfg[0] = 0xa5;
+		isp_cmd_write_conf(dev, 0x7, len, cfg);
+		printf("write protection disabled\n");
+	}
 }
 
 static void
@@ -823,6 +811,18 @@ static void
 cmd_reset(struct isp_dev *dev, __unused int argc, __unused char **argv)
 {
 	isp_cmd_isp_end(dev, 1);
+}
+
+static struct isp_dev *
+dev_by_uid(const char *uid)
+{
+	size_t i;
+
+	for (i = 0; i < dev_count; i++)
+		if (streq(uid, dev_list[i].uid_str))
+			return &dev_list[i];
+
+	return NULL;
 }
 
 char *argv0;
