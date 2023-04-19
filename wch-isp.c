@@ -570,7 +570,7 @@ progress_bar(const char *act, size_t current, size_t total)
 	static char f[] = "####################################################";
 	static char e[] = "                                                    ";
 	int l = sizeof(f) - 1;
-	int n = (current * l) / total;
+	int n = total > 0 ? (l * current) / total : (size_t)l;
 
 	if (!do_progress)
 		return;
