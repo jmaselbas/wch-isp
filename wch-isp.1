@@ -8,14 +8,20 @@ wch-isp \- firmware programmer for WCH microcontrollers
 .RI [ ARG ...]
 .P
 .B wch-isp
-.RB [ \-Vnpr ]
+.RB [ \-VDnpr ]
 .RB [ \-d
 .BR <uid> ]
 .RB [ flash | write | verify | reset ]
 .I FILE
 .P
 .B wch-isp
-.RB [ \-Vnpr ]
+.RB [ \-VDnpr ]
+.RB [ \-d
+.BR <uid> ]
+.RB [ erase | config | remove-wp ]
+.P
+.B wch-isp
+.RB [ \-VDnpr ]
 .RB [ \-d
 .BR <uid> ]
 .B list
@@ -26,7 +32,7 @@ By default the flash content is verified after writing.
 .SH OPTIONS
 .TP
 .B \-d <uid>
-Select the usb device that matches the uid.
+Select the USB device that matches the uid.
 .TP
 .B \-n
 Do not verify flash content after writing, verification is done by default.
@@ -38,7 +44,7 @@ Prints a progress bar during command operation.
 Reset the microcontroller after the command is completed.
 .TP
 .B \-D
-Print raw isp command, for debug.
+Enable debug information, print raw isp commands sent over USB.
 .TP
 .B \-V
 Prints version information to stdout, then exits.
@@ -64,3 +70,12 @@ content against the flash content.
 .TP
 .B reset
 Reset the microcontroller and jump to code flash.
+.TP
+.B erase
+Erase all the flash content.
+.TP
+.B config
+Print a memory dump of the chip configuration.
+.TP
+.B remove-wp
+Disable flash write protection (modifies the chip configuration).
