@@ -110,7 +110,7 @@ static void usb_fini(void);
 static void usb_open(struct isp_dev *dev, libusb_device *usb_dev);
 static void usb_close(struct isp_dev *dev);
 
-static void dbg_isp_cmd(const char *dir, u8 cmd, u16 len, u8 *data);
+static void dbg_isp_cmd(const char *dir, u8 cmd, u16 len, const u8 *data);
 static void isp_init(struct isp_dev *dev);
 static void isp_key_init(struct isp_dev *dev);
 static void isp_fini(struct isp_dev *dev);
@@ -130,7 +130,7 @@ die(const char *errstr, ...)
 }
 
 static void
-dbg_isp_cmd(const char *dir, u8 cmd, u16 len, u8 *data)
+dbg_isp_cmd(const char *dir, u8 cmd, u16 len, const u8 *data)
 {
 	u16 i;
 
