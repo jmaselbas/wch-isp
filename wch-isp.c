@@ -678,7 +678,7 @@ cmd_write_flash(struct isp_dev *dev, int argc, char **argv)
 
 	file_read_all(name, &size, &bin);
 	if (size > db_flash_size(dev))
-		die("%s: file too big, flash size is %d", name, db_flash_size(dev));
+		die("%s: file too big, flash size is %zd", name, db_flash_size(dev));
 
 	isp_flash(dev, size, bin);
 	if (do_verify)
@@ -700,7 +700,7 @@ cmd_verify_flash(struct isp_dev *dev, int argc, char **argv)
 
 	file_read_all(name, &size, &bin);
 	if (size > db_flash_size(dev))
-		die("%s: file too big, flash size is %d", name, db_flash_size(dev));
+		die("%s: file too big, flash size is %zd", name, db_flash_size(dev));
 
 	isp_verify(dev, size, bin);
 
