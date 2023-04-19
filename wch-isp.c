@@ -13,6 +13,7 @@
 
 #define __noreturn __attribute__((noreturn))
 #define __unused __attribute__((unused))
+#define __printf __attribute__((format(printf,1,2)))
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -99,7 +100,7 @@ static int do_reset;
 static int do_verify = 1;
 static const char *do_match;
 
-__noreturn static void die(const char *errstr, ...);
+__noreturn static void die(const char *errstr, ...) __printf;
 __noreturn static void version(void);
 __noreturn static void usage(int help);
 static void *xcalloc(size_t nmemb, size_t size);
