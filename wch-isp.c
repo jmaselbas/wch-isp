@@ -371,9 +371,12 @@ static u16
 read_btver(struct isp_dev *dev)
 {
 	u8 buf[4];
+	size_t len;
 
 	/* format: [0x00, major, minor, 0x00] */
-	isp_cmd_read_conf(dev, CFG_MASK_BTVER, sizeof(buf), buf);
+	len = isp_cmd_read_conf(dev, CFG_MASK_BTVER, sizeof(buf), buf);
+	if (len != 4)
+		return 0xffff;
 
 	return (buf[1] << 8) | buf[2];
 }
