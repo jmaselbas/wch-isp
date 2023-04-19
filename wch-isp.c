@@ -836,7 +836,7 @@ usage(int help)
 
 	printf("       %s [-VDnpr] list\n", argv0);
 	if (!help)
-		die("");
+		exit(1);
 
 	printf("options:\n");
 	printf("  -d <uid> Select the usb device that matches the uid\n");
@@ -846,14 +846,14 @@ usage(int help)
 	printf("  -D       Print raw isp command (for debug)\n");
 	printf("  -V       Print version and exits\n");
 
-	die("");
+	exit(0);
 }
 
 static void
 version(void)
 {
 	printf("%s %s\n", argv0, VERSION);
-	die("");
+	exit(0);
 }
 
 static const struct {
