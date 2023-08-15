@@ -837,7 +837,6 @@ usage(int help)
 	printf("usage: %s [-VDnpr] [-d <uid>] COMMAND [ARG ...]\n", argv0);
 	printf("       %s [-VDnpr] [-d <uid>] [flash|write|verify|reset] FILE\n", argv0);
 	printf("       %s [-VDnpr] [-d <uid>] [erase|config|remove-wp]\n", argv0);
-
 	printf("       %s [-VDnpr] list\n", argv0);
 	if (!help)
 		exit(1);
