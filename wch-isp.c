@@ -906,6 +906,9 @@ main(int argc, char **argv)
 		usage(1);
 	default:
 		usage(0);
+	} ARGLONG {
+		fprintf(stderr, "unknown option '%s'\n", ARGLC());
+		usage(0);
 	} ARGEND;
 
 	usb_init();
