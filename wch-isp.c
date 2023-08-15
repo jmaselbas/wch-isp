@@ -714,7 +714,7 @@ cmd_verify_flash(struct isp_dev *dev, int argc, char **argv)
  * fmtb formating function to print a binary number to a char buf
  * b the output buffer
  * n the buffer size
- * p the "precision", how much bit to be printed
+ * p the "precision", how many 'bit' will be printed
  * v the value to be printed
  */
 static char *
