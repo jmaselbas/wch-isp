@@ -848,7 +848,7 @@ usage(int help)
 	printf("  -p       Print a progress-bar during command operation\n");
 	printf("  -r       Reset after command completed\n");
 	printf("  -D       Print raw isp command (for debug)\n");
-	printf("  -V       Print version and exits\n");
+	printf("  -V       Print version and exit\n");
 
 	exit(0);
 }
