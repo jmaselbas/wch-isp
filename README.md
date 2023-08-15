@@ -4,6 +4,21 @@ wch-isp
 wch-isp is an utility to write firmware into the flash of WCH microcontrollers, over USB.
 This utility started as a rewrite in C of the rust tool [wchisp](https://github.com/ch32-rs/wchisp).
 
+```
+usage: wch-isp [-VDnpr] [-d <uid>] COMMAND [ARG ...]
+       wch-isp [-VDnpr] [-d <uid>] [flash|write|verify|reset] FILE
+       wch-isp [-VDnpr] [-d <uid>] [erase|config|remove-wp]
+       wch-isp [-VDnpr] list
+
+options:
+  -d <uid> Select the usb device that matches the uid
+  -n       No verify after writing to flash, done by default
+  -p       Print a progress-bar during command operation
+  -r       Reset after command completed
+  -D       Print raw isp command (for debug)
+  -V       Print version and exit
+```
+
 This utility has been tested on:
  - CH32V103
  - CH569W
