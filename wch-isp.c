@@ -32,9 +32,6 @@ static int ch56x_show_conf(struct isp_dev *dev, size_t len, u8 *cfg);
 #define MAX_PACKET_SIZE 64
 #define SECTOR_SIZE  1024
 
-#define BTVER_2_6 0x0206
-#define BTVER_2_7 0x0207
-
 /*
  *  All readable and writable registers.
  *  - `RDPR`: Read Protection
@@ -553,16 +550,16 @@ isp_key_init(struct isp_dev *dev)
 	/* send the isp key */
 	isp_cmd_isp_key(dev, sizeof(isp_key), isp_key, &rsp);
 
-	if (dev->btver >= BTVER_2_7) {
-		/* bootloader version 2.7 (and maybe onward) simply send zero */
+	/* The bootloader send back a checksum of xor_key. This response is
+	 * to make sure that we are in sync. */
+	for (sum = 0, i = 0; i < sizeof(dev->xor_key); i++)
+		sum += dev->xor_key[i];
+
+	 /* Workaround for CH56x family which reply with 0
+	  * (only tested on CH569) */
+	if (dev->type == 0x10)
 		sum = 0;
-	} else {
-		/* bootloader version 2.6 (and maybe prior versions) send back
-		 * the checksum of xor_key. This response is used to make sure
-		 * we are in sync. */
-		for (sum = 0, i = 0; i < sizeof(dev->xor_key); i++)
-			sum += dev->xor_key[i];
-	}
+
 	if (rsp != sum)
 		die("failed set isp key, wrong reply, got %x (exp %x)\n", rsp, sum);
 }
