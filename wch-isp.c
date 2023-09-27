@@ -946,6 +946,7 @@ main(int argc, char **argv)
 	for (i = 0; i < LEN(cmds); i++) {
 		if (streq(argv[0], cmds[i].name)) {
 			cmds[i].func(dev, argc, argv);
+			printf("%s done\n", cmds[i].name);
 			break;
 		}
 	}
