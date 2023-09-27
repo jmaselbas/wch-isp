@@ -940,11 +940,11 @@ main(int argc, char **argv)
 			die("no device match for '%s'\n", do_match);
 	}
 
-	isp_key_init(dev);
 	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n",
 	       dev->btver >> 8, dev->btver & 0xff,
 	       dev->uid_str, dev->type, dev->id,
 	       dev->name);
+	isp_key_init(dev);
 
 	for (i = 0; i < LEN(cmds); i++) {
 		if (streq(argv[0], cmds[i].name)) {
