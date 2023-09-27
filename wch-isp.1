@@ -79,3 +79,40 @@ Print a memory dump of the chip configuration.
 .TP
 .B remove-wp
 Disable flash write protection (modifies the chip configuration).
+.SH EXAMPLES
+.PP
+List detected devices:
+.PP
+.in +4n
+.EX
+.RB "$ " "wch-isp list"
+0: BTVER v2.7 UID 8d-ff-ba-e4-c2-84-09-69 [0x1069] CH569
+1: BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+.EE
+.in
+.PP
+Flash the
+.B firmware.bin
+file,
+.B \-p
+enable the progress bar.
+.PP
+.in +4n
+.EX
+.RB "$ " "wch-isp -p flash firmware.bin"
+BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+[####################################################] write 35392/35392
+[####################################################] verify 35392/35392
+flash done
+.EE
+.in
+.PP
+Erase the device's flash, select the device by it's uid (option
+.BR \-d ).
+.PP
+.in +4n
+.EX
+.RB "$ " "wch-isp -d f2-3e-88-26-3b-38-b5-9d erase"
+BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+erase done
+

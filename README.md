@@ -23,6 +23,32 @@ This utility has been tested on:
  - CH32V103
  - CH569W
 
+
+## Examples
+
+List detected device in bootloader mode:
+```sh
+$ wch-isp list
+0: BTVER v2.7 UID 8d-ff-ba-e4-c2-84-09-69 [0x1069] CH569
+1: BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+```
+
+Flash the `firmware.bin` file, `-p` enable the progress bar.
+```
+$ wch-isp -p flash firmware.bin
+BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+[####################################################] write 35392/35392
+[####################################################] verify 35392/35392
+flash done
+```
+
+Erase the device's flash, select the device by it's uid (option `-d`).
+```
+$ wch-isp -d f2-3e-88-26-3b-38-b5-9d erase
+BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+erase done
+```
+
 ## Dependency
 
 wch-isp depends on libusb 1.0 or above.
