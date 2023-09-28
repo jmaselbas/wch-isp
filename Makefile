@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-only
-VERSION = 0.2.5
+VERSION = 0.3.0
 
 # Install paths
 PREFIX = /usr/local
