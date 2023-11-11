@@ -75,22 +75,37 @@ const struct db devices[] = {
 		{ 0x33, "CH32V103x8x6", SZ_64K },
 		{ /* sentinel */ } }
 	},
-	{ .type = 0x19, .flash_sector_size = 1024,
+	{ .type = 0x19, .flash_sector_size = 4096,
 	  .name = "CH32V20x",
 	  .devs = (const struct db_dev[]){
-		{ 0x80, "CH32V208WBU6", SZ_480K },
-		{ 0x81, "CH32V208RBT6", SZ_128K },
-		{ 0x82, "CH32V208CBU6", SZ_128K },
-		{ 0x83, "CH32V208CBU6", SZ_128K },
-		{ 0x30, "CH32V203C8U6", SZ_64K },
-		{ 0x31, "CH32V203C8T6", SZ_64K },
-		{ 0x32, "CH32V203K8T6", SZ_64K },
-		{ 0x33, "CH32V203C6T6", SZ_32K },
-		{ 0x34, "CH32V203RBT6", SZ_128K },
-		{ 0x35, "CH32V203K6T6", SZ_32K },
-		{ 0x35, "CH32V203G6U6", SZ_32K },
-		{ 0x35, "CH32V203F6P6", SZ_32K },
-		{ 0x37, "CH32V203F6P6", SZ_32K },
+/*TODO*/	//{ ?, "CH32V208GB", SZ_480K }, //flash cache + RAM = 128 + 64
+            	{ 0x82, "CH32V208CB", SZ_480K }, //flash cache + RAM = 128 + 64
+/*TODO*/	{ 0x83, "CH32V208CB", SZ_480K }, //flash cache + RAM = 128 + 64
+		{ 0x81, "CH32V208RB", SZ_480K }, //flash cache + RAM = 128 + 64
+		{ 0x80, "CH32V208WB", SZ_480K }, //flash cache + RAM = 128 + 64
+                { 0x35, "CH32V203F6,G6,K6", SZ_224K }, //flash cache + RAM = 32 + 10
+/*TODO*/	//{ ?, "CH32V203F8,G8,K8", SZ_224K }, //flash cache + RAM = 64 + 20
+                { 0x32, "CH32V203K8", SZ_64K }, // flash cache + RAM = 64 + 20
+                { 0x33, "CH32V203C6", SZ_32K }, //flash cache + RAM = 32 + 10
+		{ 0x31, "CH32V203C8T6", SZ_64K }, //flash cache + RAM = 64 + 20
+/*TODO*/	{ 0x30, "CH32V203C8U6", SZ_64K }, //flash cache + RAM = 64 + 20
+		{ 0x34, "CH32V203RB", SZ_128K }, //flash cache + RAM = [128+64]
+		
 		{ /* sentinel */ } }
 	},
+        { .type = 0x17, .flash_sector_size = 4096,
+          .name = "CH32V30x",
+          .devs = (const struct db_dev[]){
+          	{ 0x33, "CH32V303CB", SZ_480K }, //flash cache + RAM = 128+32
+                { 0x32, "CH32V303RB", SZ_480K }, //flash cache + RAM = 128+32
+                { 0x31, "CH32V303RC", SZ_480K }, //flash cache + RAM = [256+64]
+          	{ 0x30, "CH32V303VC", SZ_480K }, //flash cache + RAM = [256+64]
+            	{ 0x50, "CH32V305RB", SZ_480K }, //flash cache + RAM = 128+32
+/*TODO*/	//{ ?, "CH32V305FB", SZ_480K }, //flash cache + RAM = 128+32
+                { 0x71, "CH32V307RC", SZ_480K }, //flash cache + RAM = [256 + 64]
+                { 0x73, "CH32V307WC", SZ_480K }, //flash cache + RAM = [256 + 64]
+                { 0x70, "CH32V307VC", SZ_480K }, //flash cache + RAM = [256 + 64]
+                
+                { /* sentinel */ } }
+        },
 };
