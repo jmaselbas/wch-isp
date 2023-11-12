@@ -11,8 +11,10 @@
 #define SZ_128K (128 * SZ_1K)
 #define SZ_192K (192 * SZ_1K)
 #define SZ_224K (224 * SZ_1K)
+#define SZ_256K (256 * SZ_1K)
 #define SZ_448K (448 * SZ_1K)
 #define SZ_480K (480 * SZ_1K)
+#define SZ_512K (512 * SZ_1K)
 
 /* record for a device */
 struct db_dev {
