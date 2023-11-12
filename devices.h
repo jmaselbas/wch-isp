@@ -75,7 +75,7 @@ const struct db devices[] = {
 		{ 0x33, "CH32V103x8x6", SZ_64K },
 		{ /* sentinel */ } }
 	},
-	{ .type = 0x19, .flash_sector_size = 1024,
+	{ .type = 0x19, .flash_sector_size = 4096,
 	  .name = "CH32V20x",
 	  .devs = (const struct db_dev[]){
 		{ 0x80, "CH32V208WBU6", SZ_480K },
