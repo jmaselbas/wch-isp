@@ -85,8 +85,6 @@ struct isp_dev {
 	u32 eeprom_size;
 	u32 flash_sector_size;
 };
-static struct isp_dev *dev_list;
-static size_t dev_count;
 
 static libusb_context *usb;
 static u8 isp_key[30]; /* all zero key */
@@ -95,15 +93,13 @@ static int dbg_enable;
 static int do_progress;
 static int do_reset;
 static int do_verify = 1;
-static const char *do_match;
+static const char *do_match = NULL;
 
 __noreturn static void die(const char *errstr, ...) __printf;
 __noreturn static void version(void);
 __noreturn static void usage(int help);
-static void *xcalloc(size_t nmemb, size_t size);
 
-static void usb_init(void);
-static void usb_fini(void);
+static struct isp_dev* usb_init(const char *dev_uid);
 static void usb_open(struct isp_dev *dev, libusb_device *usb_dev);
 static void usb_close(struct isp_dev *dev);
 
@@ -138,15 +134,6 @@ dbg_isp_cmd(const char *dir, u8 cmd, u16 len, const u8 *data)
 	for (i = 0; i < len; i++)
 		fprintf(stderr, "%.2x", data[i]);
 	fprintf(stderr, "\n");
-}
-
-static void *
-xcalloc(size_t nmemb, size_t size)
-{
-	void *p = calloc(nmemb, size);
-	if (p == NULL)
-		die("calloc: %s\n", strerror(errno));
-	return p;
 }
 
 static int
@@ -378,37 +365,51 @@ read_btver(struct isp_dev *dev)
 	return (buf[1] << 8) | buf[2];
 }
 
-static void
-usb_init(void)
-{
+static struct isp_dev* usb_init(const char *dev_uid){
+    static struct isp_dev cur;
+    struct isp_dev *dev = NULL;
 	struct libusb_device_descriptor desc;
 	ssize_t i, count;
 	libusb_device **list;
 	int err;
 
 	err = libusb_init(&usb);
-	if (err)
-		die("libusb_init: %s\n", libusb_strerror(err));
+	if(err)die("libusb_init: %s\n", libusb_strerror(err));
 
 	count = libusb_get_device_list(usb, &list);
-	if (count < 0)
-		die("Fail to get a list of USB devices: %s\n", strerror(errno));
+	if(count < 0)die("Fail to get a list of USB devices: %s\n", strerror(errno));
 
-	dev_list = xcalloc(count, sizeof(*dev_list));
-	for (i = 0; i < count; i++) {
+	for(i = 0; i < count; i++){
 		err = libusb_get_device_descriptor(list[i], &desc);
-		if (err < 0)
-			continue;
-		if (desc.idVendor == ISP_VID && desc.idProduct == ISP_PID)
-			usb_open(&dev_list[dev_count++], libusb_ref_device(list[i]));
+		if(err < 0)continue;
+		if(desc.idVendor == ISP_VID && desc.idProduct == ISP_PID){
+			usb_open(&cur, libusb_ref_device(list[i]));
+			isp_init(&cur);
+			
+			if(dev_uid == NULL){ //default: first MCU
+			  dev = &cur;
+			  break;
+			}else if(dev_uid[0] == 0){ //list
+			  printf("%zd: BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n", i,
+			         cur.btver >> 8, cur.btver & 0xff,
+			         cur.uid_str, cur.type, cur.id,
+			         cur.name);
+			}else if(streq(dev_uid, cur.uid_str)){ //uuid
+			  dev = &cur;
+			  break;
+			}
+			isp_fini(&cur);
+			usb_close(&cur);
+			libusb_device *tmp = libusb_get_device(cur.usb_dev);
+			libusb_unref_device(tmp);
+		}
 	}
 
 	libusb_free_device_list(list, 1);
+	return dev;
 }
 
-static void
-usb_open(struct isp_dev *dev, libusb_device *usb_dev)
-{
+static void usb_open(struct isp_dev *dev, libusb_device *usb_dev){
 	int err;
 
 	err = libusb_open(usb_dev, &dev->usb_dev);
@@ -444,24 +445,6 @@ usb_close(struct isp_dev *dev)
 
 	if (dev->usb_dev)
 		libusb_close(dev->usb_dev);
-}
-
-static void
-usb_fini(void)
-{
-	libusb_device *dev;
-
-	while (dev_count > 0) {
-		dev_count--;
-		dev = libusb_get_device(dev_list[dev_count].usb_dev);
-		usb_close(&dev_list[dev_count]);
-		libusb_unref_device(dev);
-	}
-	if (dev_list)
-		free(dev_list);
-
-	if (usb)
-		libusb_exit(usb);
 }
 
 static size_t
@@ -814,18 +797,6 @@ cmd_reset(struct isp_dev *dev, __unused int argc, __unused char **argv)
 	isp_cmd_isp_end(dev, 1);
 }
 
-static struct isp_dev *
-dev_by_uid(const char *uid)
-{
-	size_t i;
-
-	for (i = 0; i < dev_count; i++)
-		if (streq(uid, dev_list[i].uid_str))
-			return &dev_list[i];
-
-	return NULL;
-}
-
 char *argv0;
 
 static void
@@ -907,40 +878,28 @@ main(int argc, char **argv)
 		usage(0);
 	} ARGEND;
 
-	usb_init();
 
 	if (argc < 1)
 		die("missing command\n");
 
-	if (dev_count == 0)
-		die("no device detected\n");
-
-	for (i = 0; i < dev_count; i++)
-		isp_init(&dev_list[i]);
-
-	if (streq(argv[0], "list")) {
-		for (i = 0; i < dev_count; i++) {
-			dev = &dev_list[i];
-			printf("%zd: BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n", i,
-			       dev->btver >> 8, dev->btver & 0xff,
-			       dev->uid_str, dev->type, dev->id,
-			       dev->name);
-		}
-		goto out;
+    if(streq(argv[0], "list"))do_match = "";
+	
+	dev = usb_init(do_match);
+  
+    if(do_match != NULL){
+      if(do_match[0] == 0)goto out; //cmd 'list'
 	}
-
-	/* by default select the first device */
-	dev = &dev_list[0];
-	if (do_match) {
-		dev = dev_by_uid(do_match);
-		if (!dev)
-			die("no device match for '%s'\n", do_match);
-	}
-
+	
+    if(dev == NULL)
+	  die("no device match for '%s'\n", do_match);
+	  
+  
 	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n",
 	       dev->btver >> 8, dev->btver & 0xff,
 	       dev->uid_str, dev->type, dev->id,
 	       dev->name);
+
+	
 	isp_key_init(dev);
 
 	for (i = 0; i < LEN(cmds); i++) {
@@ -954,8 +913,12 @@ main(int argc, char **argv)
 		die("%s: invalid command\n", argv[0]);
 
 	isp_fini(dev);
+
+	usb_close(dev);
+	libusb_device *tmp = libusb_get_device(dev->usb_dev);
+	libusb_unref_device(tmp);
 out:
-	usb_fini();
+	if(usb)libusb_exit(usb);
 
 	return 0;
 }
