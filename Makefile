@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-only
-VERSION = 0.3.0
+VERSION = 0.1.0
 
 # Install paths
 PREFIX = /usr/local
@@ -22,7 +22,7 @@ WCHISP_CPPFLAGS = -DVERSION=\"$(VERSION)\" $(CPPFLAGS)
 WCHISP_CFLAGS = -Wall -O2 $(INCS) $(CFLAGS)
 WCHISP_LDFLAGS = $(LIBS) $(LDFLAGS)
 
-SRC = wch-isp.c
+SRC = main.c wch_if_usb.c
 HDR = arg.h devices.h
 OBJ = $(SRC:.c=.o)
 BIN = wch-isp
