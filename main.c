@@ -121,14 +121,21 @@ void dbg(wch_if_t interface, char comment[], uint16_t len, uint8_t buf[]){
   
 int main(){
   isp_dev dev;
-  dev.port = wch_if_open_usb( dev_match );
+  //dev.port = wch_if_open_usb( dev_match );
+  dev.port = wch_if_open_uart("/dev/ttyUSB0", NULL);
   if(dev.port == NULL){
-    fprintf(stderr, "Error opening port\n");
+    fprintf(stderr, "Error opening port / device not found\n");
     return -1;
   }
-  wch_if_set_debug(dev.port, dbg);
+  //wch_if_set_debug(dev.port, dbg);
+  
   isp_cmd_identify(&dev);
-
+  dev_readinfo(&dev);
+  
+  printf("id = %.2X %.2X\n", dev.id, dev.type);
+  printf("found bt ver %.4X uid = [", dev.bootloader_ver);
+  for(int i=0; i<7; i++)printf("%.2X ", dev.uid[i]);
+  printf("%.2X]\n", dev.uid[7]);
   
   
   if(dev.port)dev.port->close(&dev.port);

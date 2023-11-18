@@ -22,7 +22,7 @@ WCHISP_CPPFLAGS = -DVERSION=\"$(VERSION)\" $(CPPFLAGS)
 WCHISP_CFLAGS = -Wall -O2 $(INCS) $(CFLAGS)
 WCHISP_LDFLAGS = $(LIBS) $(LDFLAGS)
 
-SRC = main.c wch_if_usb.c
+SRC = main.c wch_if_usb.c wch_if_uart.c
 HDR = arg.h devices.h
 OBJ = $(SRC:.c=.o)
 BIN = wch-isp

@@ -12,7 +12,6 @@
 typedef struct{
   libusb_context *usb;
   libusb_device_handle *dev;
-  libusb_device *cur;
   unsigned int kernel;
 }usb_if_t;
 
@@ -29,7 +28,10 @@ wch_if_t wch_if_open_usb( wch_if_match match_func ){
   
   wch_if_t port = (wch_if_t)malloc(sizeof(struct wch_if));
   if(port == NULL)return NULL;
+  
   usb_if_t *usb = (usb_if_t*)malloc(sizeof(usb_if_t));
+  if(usb == NULL){free(port); return NULL;}
+  
   usb->usb = NULL;
   usb->dev = NULL;
   usb->kernel = 0;
@@ -38,7 +40,6 @@ wch_if_t wch_if_open_usb( wch_if_match match_func ){
   port->recv = usb_if_recv;
   port->close = usb_if_close;
   port->debug = NULL;
-  port->dev = NULL;
   port->intern = usb;
   
   int res;
@@ -141,7 +142,7 @@ static size_t usb_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t
   }
   if(count < len)len = count;
 
-  if(data != NULL)memcpy(data, buf + 4, len);
+  if(data != NULL)memcpy(data, &buf[4], len);
 
   if( interface->debug )interface->debug(interface, "usb_if_recv", count+4, buf);
 
