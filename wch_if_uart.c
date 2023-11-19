@@ -11,16 +11,13 @@ int wch_if_uart_close(wch_if_uart_t tty);
 ssize_t wch_if_uart_write(wch_if_uart_t tty, void *buf, size_t count);
 ssize_t wch_if_uart_read(wch_if_uart_t tty, void *buf, size_t count);
 int wch_if_uart_timeout(wch_if_uart_t tty, ssize_t time_ms);
-void wch_if_uart_rts(wch_if_uart_t tty, char state);
-void wch_if_uart_dtr(wch_if_uart_t tty, char state);
 
 
 static size_t uart_if_send(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t data[]);
 static size_t uart_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t data[]);
-static void uart_if_close(wch_if_t *interface);
 #define TTY ( (wch_if_uart_t)(interface->intern) )
 
-wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func){
+wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func, wch_if_debug debug_func ){
   if(portname == NULL){fprintf(stderr, "portname = NULL\n"); return NULL;}
 //TODO if portname == NULL add function to list all avaible COM-ports and try to connect
   
@@ -33,12 +30,12 @@ wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func){
   port->maxdatasize = 61;
   port->send = uart_if_send;
   port->recv = uart_if_recv;
-  port->close = uart_if_close;
-  port->debug = NULL;
+  port->close = wch_if_close_uart;
+  port->debug = debug_func;
   port->intern = tty;
   
   if(match_func){
-    if(!match_func(port))uart_if_close(&port);
+    if(!match_func(port))wch_if_close_uart(&port);
   }
   
   return port;
@@ -104,7 +101,7 @@ static size_t uart_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_
   return len;
 }
 
-static void uart_if_close(wch_if_t *interface){
+void wch_if_close_uart(wch_if_t *interface){
   wch_if_uart_t tty = ( (wch_if_uart_t)((*interface)->intern) );
   wch_if_uart_close(tty);
   
@@ -248,20 +245,20 @@ int wch_if_uart_timeout(wch_if_uart_t tty, ssize_t time_ms){
   return 0;
 }
 
-void wch_if_uart_rts(wch_if_uart_t tty, char state){
+void wch_if_uart_rts(wch_if_t interface, char state){
   int flags;
   state = !state;
-  ioctl(tty->fd, TIOCMGET, &flags);
+  ioctl(TTY->fd, TIOCMGET, &flags);
   flags = (flags &~TIOCM_RTS) | (state*TIOCM_RTS);
-  ioctl(tty->fd, TIOCMSET, &flags);
+  ioctl(TTY->fd, TIOCMSET, &flags);
 }
 
-void wch_if_uart_dtr(wch_if_uart_t tty, char state){
+void wch_if_uart_dtr(wch_if_t interface, char state){
   int flags;
   state = !state;
-  ioctl(tty->fd, TIOCMGET, &flags);
+  ioctl(TTY->fd, TIOCMGET, &flags);
   flags = (flags &~TIOCM_DTR) | (state*TIOCM_DTR);
-  ioctl(tty->fd, TIOCMSET, &flags);
+  ioctl(TTY->fd, TIOCMSET, &flags);
 }
 
 #elif defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
@@ -374,16 +371,16 @@ int wch_if_uart_timeout(wch_if_uart_t tty, ssize_t time_ms){
   return 0;
 }
 
-void wch_if_uart_rts(wch_if_uart_t tty, char state){
+void wch_if_uart_rts(wch_if_t interface, char state){
   DWORD code;
   if(state)code = IOCTL_SERIAL_CLR_RTS; else code = IOCTL_SERIAL_SET_RTS;
-  DeviceIoControl(tty->handle, code, NULL, 0, NULL, 0, NULL, NULL);
+  DeviceIoControl(TTY->handle, code, NULL, 0, NULL, 0, NULL, NULL);
 }
 
-void wch_if_uart_dtr(wch_if_uart_t tty, char state){
+void wch_if_uart_dtr(wch_if_t interface, char state){
   DWORD code;
   if(state)code = IOCTL_SERIAL_CLR_DTR; else code = IOCTL_SERIAL_SET_DTR;
-  DeviceIoControl(tty->handle, code, NULL, 0, NULL, 0, NULL, NULL);
+  DeviceIoControl(TTY->handle, code, NULL, 0, NULL, 0, NULL, NULL);
 }
 
 #else

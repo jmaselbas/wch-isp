@@ -17,13 +17,12 @@ typedef struct{
 
 static size_t usb_if_send(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t data[]);
 static size_t usb_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t data[]);
-static void usb_if_close(wch_if_t *interface);
 #define SELF ( (usb_if_t*)(interface->intern) )
 
 static char wch_if_match_default(wch_if_t self){return 1;}
 
 
-wch_if_t wch_if_open_usb( wch_if_match match_func ){
+wch_if_t wch_if_open_usb( wch_if_match match_func, wch_if_debug debug_func ){
   if(match_func == NULL)match_func = wch_if_match_default;
   
   wch_if_t port = (wch_if_t)malloc(sizeof(struct wch_if));
@@ -38,8 +37,8 @@ wch_if_t wch_if_open_usb( wch_if_match match_func ){
   port->maxdatasize = 64-3;
   port->send = usb_if_send;
   port->recv = usb_if_recv;
-  port->close = usb_if_close;
-  port->debug = NULL;
+  port->close = wch_if_close_usb;
+  port->debug = debug_func;
   port->intern = usb;
   
   int res;
@@ -95,7 +94,7 @@ wch_if_t wch_if_open_usb( wch_if_match match_func ){
     usb->dev = NULL;
   }
   libusb_free_device_list(list, 1);
-  usb_if_close(&port);
+  wch_if_close_usb(&port);
   return NULL;
 }
 
@@ -149,7 +148,7 @@ static size_t usb_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t
   return count;
 }
 
-static void usb_if_close(wch_if_t *interface){
+void wch_if_close_usb(wch_if_t *interface){
   usb_if_t *usb = (usb_if_t*)((*interface)->intern);
   int res = 0;
   libusb_device *dev = NULL;
