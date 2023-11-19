@@ -97,7 +97,7 @@ static size_t uart_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_
   for(int i=2; i<(datalen+6); i++)sum+=buf[i];
   if(buf[datalen+6] != sum)printf("uart_if_recv: checksum error: %.2X (exp. %.2X)\n", buf[datalen+6], sum);
   
-  if( interface->debug )interface->debug(interface, "uart_if_send", len+7, buf);
+  if( interface->debug )interface->debug(interface, "uart_if_recv", len+7, buf);
   
   if(len > datalen)len = datalen;
   if(data != NULL)memcpy(data, &buf[6], len);
