@@ -65,9 +65,7 @@ static void isp_cmd_isp_end(isp_dev_t dev, uint8_t reason);
 //
 static char isp_cmd_erase(isp_dev_t dev, uint32_t sectors);
 //
-static uint16_t isp_cmd_program(isp_dev_t dev, uint32_t addr, uint16_t len, uint8_t data[]);
-//
-static uint16_t isp_cmd_verify(isp_dev_t dev, uint32_t addr, uint16_t len, uint8_t data[]);
+static size_t isp_cmd_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t len, uint8_t *data);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -164,11 +162,10 @@ static char isp_cmd_erase(isp_dev_t dev, uint32_t sectors){
   return 1;
 }
 
-static uint16_t isp_cmd_program(isp_dev_t dev, uint32_t addr, uint16_t len, uint8_t data[]){
+static size_t isp_cmd_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t len, uint8_t data[]){
   uint8_t buf[64];
   if(len > dev->port->maxdatasize-5){
-    fprintf(stderr, "isp_cmd_program: data boot big, %d (max=%d)\n", len, dev->port->maxdatasize-5);
-    return 0;
+    len = dev->port->maxdatasize-5;
   }
   buf[0] = (addr >>  0) & 0xff;
   buf[1] = (addr >>  8) & 0xff;
@@ -177,36 +174,23 @@ static uint16_t isp_cmd_program(isp_dev_t dev, uint32_t addr, uint16_t len, uint
   buf[4] = 0; //padding (ignored by bootloader)
   
   for(int i=0; i<len; i++)buf[i+5] = data[i] ^ dev->xor_key[i % 8];
+  //TODO: test
+  size_t align = (len + 7)&~7;
+  if(len != align){
+    for(int i=len; i<align; i++)buf[i+5] = dev->xor_key[i % 8];
+    //printf("align %zu -> %zu\n", len, align);
+    len = align;
+  }
   
-  dev->port->send(dev->port, CMD_PROGRAM, len+5, buf);
-  dev->port->recv(dev->port, CMD_PROGRAM, 2, buf);
+  
+  dev->port->send(dev->port, cmd, len+5, buf);
+  dev->port->recv(dev->port, cmd, 2, buf);
   
   if(buf[0] != 0 || buf[1] != 0){
-    fprintf(stderr, "isp_cmd_program: failed at address 0x%.8X\n", addr);
-    return 0;
-  }
-  return len;
-}
-
-static uint16_t isp_cmd_verify(isp_dev_t dev, uint32_t addr, uint16_t len, uint8_t data[]){
-  uint8_t buf[64];
-  if(len > dev->port->maxdatasize-5){
-    fprintf(stderr, "isp_cmd_verify: data boot big, %d (max=%d)\n", len, dev->port->maxdatasize-5);
-    return 0;
-  }
-  buf[0] = (addr >>  0) & 0xff;
-  buf[1] = (addr >>  8) & 0xff;
-  buf[2] = (addr >> 16) & 0xff;
-  buf[3] = (addr >> 24) & 0xff;
-  buf[4] = 0; //padding (ignored by bootloader)
-  
-  for(int i=0; i<len; i++)buf[i+5] = data[i] ^ dev->xor_key[i % 8];
-  
-  dev->port->send(dev->port, CMD_VERIFY, len+5, buf);
-  dev->port->recv(dev->port, CMD_VERIFY, 2, buf);
-  
-  if(buf[0] != 0 || buf[1] != 0){
-    fprintf(stderr, "isp_cmd_verify: failed at address 0x%.8X\n", addr);
+    if(cmd == CMD_VERIFY)fprintf(stderr, "isp_cmd_verify");
+      else if(cmd == CMD_PROGRAM)fprintf(stderr, "isp_cmd_program");
+      else fprintf(stderr, "isp_cmd_unknown (%.2X)", cmd);
+    fprintf(stderr, ": failed at address 0x%.8X\n", addr);
     return 0;
   }
   return len;
@@ -218,9 +202,14 @@ static uint16_t isp_cmd_verify(isp_dev_t dev, uint32_t addr, uint16_t len, uint8
 ////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
+size_t flash_align(size_t x){
+  //return (x + 63) &~ 63;
+  return x;
+}
+
 static void file_read_bin(const char name[], size_t *sz, uint8_t **data){
   int res;
-  size_t len;
+  size_t len, size;
   uint8_t *buf = NULL;
   FILE *pf = fopen(name, "rb");
   if(pf == NULL){fprintf(stderr, "file_read_bin, open [%s]: %s\n", name, strerror(errno)); return;}
@@ -229,12 +218,18 @@ static void file_read_bin(const char name[], size_t *sz, uint8_t **data){
   len = ftell(pf);
   res = fseek(pf, 0, SEEK_SET);
   if(res == -1){fprintf(stderr, "file_read_bin, fseek: %s\n", strerror(errno)); return;}
+  
+  size = flash_align(len);
+  
   buf = malloc(len);
   if(buf == NULL){fprintf(stderr, "file_read_bin, malloc %d bytes\n", (int)len); return;}
   size_t rdbytes = fread(buf, 1, len, pf);
-  if(rdbytes != len){fprintf(stderr, "file_read_bin, read %d bytes (exp. %d)\n", (int)rdbytes, (int)len);}
+  if(rdbytes != len){
+    fprintf(stderr, "file_read_bin, read %d bytes (exp. %d)\n", (int)rdbytes, (int)len);
+  }
   fclose(pf);
-  *sz = rdbytes;
+  memset(&buf[rdbytes], 0, (size-rdbytes));
+  *sz = size;
   *data = buf;
 }
 
@@ -305,6 +300,7 @@ static void file_read_hex(const char name[], size_t *sz, uint8_t **data){
     }
   }
   fclose(pf);
+  size = flash_align(size);
   *sz = size;
   *data = buf;
 }
@@ -333,55 +329,28 @@ static void file_read(const char name[], size_t *sz, uint8_t **data){
 ////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void dev_readinfo(isp_dev_t dev){
+static char dev_readinfo(isp_dev_t dev){
   uint8_t buf[12];
   size_t len;
   len = isp_cmd_read_config(dev, CFG_MASK_BTVER | CFG_MASK_UID, sizeof(buf), buf);
   if(len != 12){
     fprintf(stderr, "dev_readinfo fail: not received enough bytes\n");
-    return;
+    return 0;
   }
   dev->bootloader_ver = (uint16_t)buf[1]<<8 | buf[2];
   memcpy(dev->uid, &buf[4], 8);
+  return 1;
 }
 
-static char do_verify(isp_dev_t dev, uint32_t addr, size_t size, uint8_t data[]){
-  size_t count = 0;
-  uint16_t res = 0xFFFF;
-  uint16_t maxdata = dev->port->maxdatasize - 5;
-  while(size){
-    count = size;
-    if(count > maxdata)count = maxdata;
-    res = isp_cmd_verify(dev, addr, count, &data[addr]);
-    if(res != count)break;
-    addr += count;
-    size -= count;
-    //TODO: progressbar
-  }
-  free(data);
-  if(res == count){printf("Verify: OK\n"); return 0;}else return 2;
-}
-
-static char do_program(isp_dev_t dev, uint32_t addr, size_t size, uint8_t data[]){
-  size_t count = 0;
-  uint16_t res = 0xFFFF;
-  uint16_t maxdata = dev->port->maxdatasize - 5;
-  while(size){
-    count = size;
-    if(count > maxdata)count = maxdata;
-    res = isp_cmd_program(dev, addr, count, &data[addr]);
-    if(res != count)break;
-    addr += count;
-    size -= count;
-    //TODO: progressbar
-  }
-  free(data);
-  if(res == count){printf("Program: OK\n"); return 0;}else return 2;
+void progressbar(char comment[], float per){
+  printf("\r%s%2.1f %%   ", comment, per);
+  fflush(stdout);
 }
 
 static char do_erase(isp_dev_t dev, size_t size){
   size = (size + 1023) / 1024;
-  if(size < 8)size = 8;
+  //if(size < 8)size = 8;
+  printf("Erase %zu sectors (%zu bytes)\n", size, size*1024);
   return isp_cmd_erase(dev, size);
 }
 
@@ -392,17 +361,49 @@ static char do_erase(isp_dev_t dev, size_t size){
 #define PIN_nRTS	3
 #define PIN_nDTR	4
 
+#define COMMAND_ERR		7
+#define COMMAND_NONE	0
+#define COMMAND_WRITE	1
+#define COMMAND_VERIFY	2
+#define COMMAND_ERASE	3
+#define COMMAND_UNLOCK	4
+#define COMMAND_INFO	5
+
 struct{
   int pin_rst:3;
   int pin_boot:3;
+  int cmd:3;
   int noverify:1;
   int progress:1;
 }run_flags = {
   .pin_rst = PIN_NONE,
   .pin_boot= PIN_NONE,
+  .cmd = COMMAND_NONE,
   .noverify = 0,
   .progress = 0,
 };
+
+static char do_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t size, uint8_t data[]){
+  char *name;
+  ssize_t sz = size;
+  size_t count = 0;
+  size_t res;
+  
+  if(cmd == CMD_VERIFY)name = "Verify: ";
+    else if(cmd == CMD_PROGRAM)name = "Write: ";
+    else{fprintf(stderr, "do_bulk.cmd must be either CMD_PROGRAM or CMD_VERIFY\n"); return 0;}
+    
+  while(sz>0){
+    count = sz;
+    res = isp_cmd_bulk(dev, cmd, addr, count, &data[addr]);
+    if(res == 0)return 0;
+    addr += res;
+    sz -= res;
+    if(run_flags.progress)progressbar(name, 100.0 - 100.0*sz/size);
+  }
+  if(cmd == CMD_PROGRAM)isp_cmd_bulk(dev, cmd, addr, 0, NULL);
+  return 1;
+}
 
 void pin_rst_ctl(wch_if_t self, char state){
   switch(run_flags.pin_rst){
@@ -472,14 +473,34 @@ static char match_dev_uid(wch_if_t self){
   return (memcmp(exp_uid, dev.uid, 8) == 0);
 }
 
-void debug(wch_if_t interface, char comment[], uint16_t len, uint8_t buf[]){
-  printf("~debug %s [%d]: ", comment, len);
-  for(int i=0; i<len; i++)printf("%.2X ", buf[i]);
+char* dbg_decode_cmd(uint8_t cmd){
+  static char* cmd_A[] = {"IDENTIFY", "ISP_END", "ISP_KEY", "ERASE", "PROGRAM", "VERIFY", "READ_CONFIG", "WRITE_CONFIG", "DATA_ERASE", "DATA_PROGRAM", "DATA_READ"};
+  static char* cmd_C[] = {"WRITE_OTP", "READ_OTP", "SET_BAUD"};
+  static char* cmd_err = "Unknown (0x00)";
+  if( (cmd >= 0xA1)&&(cmd <= 0xAB) )return cmd_A[cmd - 0xA1];
+  if( (cmd >= 0xC3)&&(cmd <= 0xC5) )return cmd_C[cmd - 0xC3];
+  sprintf(cmd_err, "Unknown (0x%.2X)", cmd);
+  return cmd_err;
+}
+
+void debug(wch_if_t interface, char comment[], char dir_send, uint16_t len, uint8_t buf[]){
+  uint8_t *data = &buf[interface->dbg_content_start];
+  uint16_t dsize;
+  if(dir_send){
+    dsize = data[1] | (uint16_t)data[2]<<8;
+  }else{
+    dsize = data[2] | (uint16_t)data[3]<<8;
+  }
+  printf("%s cmd %s (%.2x) len %.4x : ", comment, dbg_decode_cmd(data[0]), data[0], dsize);
+  dsize = len - interface->dbg_content_start - 4 + dir_send;
+  for(int i=0; i<dsize; i++)printf("%.2x", data[i+4-dir_send]);
   printf("\n");
 }
 
-void show_version(char name[]){
-  printf("%s %s\n", name, VERSION);
+void debug1(wch_if_t interface, char comment[], uint16_t len, uint8_t buf[]){
+  printf("~debug %s [%d]: ", comment, len);
+  for(int i=0; i<len; i++)printf("%.2X ", buf[i]);
+  printf("\n");
 }
 
 int rtsdtr_decode(char *str){
@@ -499,33 +520,15 @@ int rtsdtr_decode(char *str){
 
 typedef char (*command_t)(isp_dev_t);
 char *port_name = "usb";
-command_t command = NULL;
 char *filename = NULL;
 wch_if_debug debug_func = NULL;
 wch_if_match match_func = match_rtsdtr;
+uint32_t writeaddr = 0;
 
 
-char command_write(isp_dev_t dev){
-  printf("Write [%s]\n", filename);
-  return 0;
+void show_version(char name[]){
+  printf("%s %s\n", name, VERSION);
 }
-char command_verify(isp_dev_t dev){
-  printf("Verify [%s]\n", filename);
-  return 0;
-}
-char command_erase(isp_dev_t dev){
-  printf("Erase\n");
-  return 0;
-}
-char command_unlock(isp_dev_t dev){
-  printf("Unlock\n");
-  return 0;
-}
-char command_info(isp_dev_t dev){
-  printf("Info\n");
-  return 0;
-}
-
 
 void help(char name[]){
   printf("usage: %s [OPTIONS] COMMAND [ARG]\n", name);
@@ -542,6 +545,7 @@ void help(char name[]){
   printf("\t--reset=PIN  Use PIN as RESET\n");
   printf("\t--boot0=PIN  Use PIN as Boot0\n");
   printf("\t    'PIN' may be 'RTS', 'DTR', 'nRTS' or 'nDTR'\n");
+  printf("\t--address=0x08000000\t Write or verify data from specified address\n");
   
   
   printf("\n");
@@ -580,32 +584,36 @@ int main(int argc, char **argv){
       run_flags.pin_rst = rtsdtr_decode( &argv[i][8] );
     }else if(StrEq(argv[i], "--boot0=")){
       run_flags.pin_boot = rtsdtr_decode( &argv[i][8] );
-    }else if(StrEq(argv[i], "write")){
-      command = command_write;
+    }else if(StrEq(argv[i], "--address=")){
+      sscanf(&argv[i][10], "%X", &writeaddr);
+    }else
+    //// COMMANDS //////////////////////
+    if(StrEq(argv[i], "write")){
+      run_flags.cmd = COMMAND_WRITE;
       filename = argv[i+1];
       i++;
     }else if(StrEq(argv[i], "verify")){
-      command = command_verify;
+      run_flags.cmd = COMMAND_VERIFY;
       filename = argv[i+1];
       i++;
     }else if(StrEq(argv[i], "erase")){
-      command = command_erase;
+      run_flags.cmd = COMMAND_ERASE;
     }else if(StrEq(argv[i], "list")){
       match_func = match_dev_list;
     }else if(StrEq(argv[i], "unlock")){
-      command = command_unlock;
+      run_flags.cmd = COMMAND_UNLOCK;
     }else if(StrEq(argv[i], "info")){
-      command = command_info;
+      run_flags.cmd = COMMAND_INFO;
     }else{
       fprintf(stderr, "Unknown command [%s]\n", argv[i]); return -1;
     }
   }
   
+  //Connect
   isp_dev dev;
   if(strcasecmp(port_name, "usb")==0){
     dev.port = wch_if_open_usb(match_func, debug_func);
   }else{
-    if(run_flags.pin_rst != PIN_NONE)
     dev.port = wch_if_open_uart(port_name, match_func, debug_func);
   }
   if(match_func == match_dev_list)return 0;
@@ -614,44 +622,49 @@ int main(int argc, char **argv){
     return -2;
   }
   
-  //debug
+  //run command
   isp_cmd_identify(&dev);
-  dev_readinfo(&dev);
-  printf("id = %.2X %.2X\n", dev.id, dev.type);
-  printf("found bt ver %.4X uid = [", dev.bootloader_ver);
-  for(int i=0; i<7; i++)printf("%.2X ", dev.uid[i]);
-  printf("%.2X]\n", dev.uid[7]);
+  if( !dev_readinfo(&dev) )run_flags.cmd = COMMAND_ERR;
   
+  if(run_flags.cmd == COMMAND_WRITE || run_flags.cmd == COMMAND_VERIFY){
+    uint8_t *data = NULL;
+    size_t size = 0;
+    char res = 0;
+    file_read(filename, &size, &data);
+    printf("file size = %zu\n", size);
+    
+    if(data != NULL){
+      uint8_t isp_key[30] = {0};
+      isp_cmd_isp_key(&dev, sizeof(isp_key), isp_key, NULL);
+      
+      if(run_flags.cmd == COMMAND_WRITE){
+        res = do_erase(&dev, size);
+        if(!res){
+          printf("Erase: FAIL\n");
+          size = 0;
+        }
+        res = do_bulk(&dev, CMD_PROGRAM, writeaddr, size, data);
+        if(!res){
+          printf("Write: FAIL\n");
+        }else{
+          printf("Write %zu bytes: DONE\n", size);
+          if(!run_flags.noverify)run_flags.cmd = COMMAND_VERIFY;
+        }
+      }
+      
+      if(run_flags.cmd == COMMAND_VERIFY){
+        res = do_bulk(&dev, CMD_VERIFY, writeaddr, size, data);
+        if(!res){
+          printf("Verify: FAIL\n");
+        }else{
+          printf("Verify %zu bytes: DONE\n", size);
+        }
+      }
+    }
+    // do_program(isp_dev_t dev, uint32_t addr, size_t size, uint8_t data[]){
+  }
   
   
   rtsdtr_release(dev.port);
-  wch_if_close(&dev.port);
-}
-
-int main1(){
-  isp_dev dev;
-  //dev.port = wch_if_open_usb( dev_match );
-  dev.port = wch_if_open_uart("/dev/ttyUSB0", NULL, NULL);
-  if(dev.port == NULL){
-    fprintf(stderr, "Error opening port / device not found\n");
-    return -1;
-  }
-  //wch_if_set_debug(dev.port, dbg);
-  
-  isp_cmd_identify(&dev);
-  dev_readinfo(&dev);
-  
-  printf("id = %.2X %.2X\n", dev.id, dev.type);
-  printf("found bt ver %.4X uid = [", dev.bootloader_ver);
-  for(int i=0; i<7; i++)printf("%.2X ", dev.uid[i]);
-  printf("%.2X]\n", dev.uid[7]);
-  
-  uint8_t isp_key[30] = {0};
-  isp_cmd_isp_key(&dev, sizeof(isp_key), isp_key, NULL);
-  
-  
-  //program(&dev, 1024, "test/blink.bin");
-  //verify(&dev, 1024, "test/blink.bin");
-  
   wch_if_close(&dev.port);
 }

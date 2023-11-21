@@ -32,6 +32,7 @@ wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func, wch_if_debug
   port->recv = uart_if_recv;
   port->close = wch_if_close_uart;
   port->debug = debug_func;
+  port->dbg_content_start = 2;
   port->intern = tty;
   
   if(match_func){
@@ -57,7 +58,7 @@ static size_t uart_if_send(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_
   for(int i=2; i<(len+5); i++)sum += buf[i];
   buf[len+5] = sum;
   
-  if( interface->debug )interface->debug(interface, "uart_if_send", len+6, buf);
+  if( interface->debug )interface->debug(interface, "uart_if_send", 1, len+6, buf);
   
   int res = wch_if_uart_write(TTY, buf, len+6);
   if(res != (len+6)){fprintf(stderr, "uart_if_send error\n"); return 0;}
@@ -94,7 +95,7 @@ static size_t uart_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_
   for(int i=2; i<(datalen+6); i++)sum+=buf[i];
   if(buf[datalen+6] != sum)printf("uart_if_recv: checksum error: %.2X (exp. %.2X)\n", buf[datalen+6], sum);
   
-  if( interface->debug )interface->debug(interface, "uart_if_recv", len+7, buf);
+  if( interface->debug )interface->debug(interface, "uart_if_recv", 0, len+7, buf);
   
   if(len > datalen)len = datalen;
   if(data != NULL)memcpy(data, &buf[6], len);

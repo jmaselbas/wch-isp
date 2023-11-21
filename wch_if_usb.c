@@ -39,6 +39,7 @@ wch_if_t wch_if_open_usb( wch_if_match match_func, wch_if_debug debug_func ){
   port->recv = usb_if_recv;
   port->close = wch_if_close_usb;
   port->debug = debug_func;
+  port->dbg_content_start = 0;
   port->intern = usb;
   
   int res;
@@ -110,7 +111,7 @@ static size_t usb_if_send(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t
   buf[2] = (len >> 8) & 0xFF;
   if(len > 0)memcpy(&buf[3], data, len);
 
-  if( interface->debug )interface->debug(interface, "usb_if_send", len+3, buf);
+  if( interface->debug )interface->debug(interface, "usb_if_send", 1, len+3, buf);
   
   res = libusb_bulk_transfer( SELF->dev, ISP_EP_OUT, buf, len + 3, &count, 10000);
   if(res){fprintf(stderr, "usb_if_send: %s\n", libusb_strerror(res)); return 0;}
@@ -143,7 +144,7 @@ static size_t usb_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t
 
   if(data != NULL)memcpy(data, &buf[4], len);
 
-  if( interface->debug )interface->debug(interface, "usb_if_recv", count+4, buf);
+  if( interface->debug )interface->debug(interface, "usb_if_recv", 0, count+4, buf);
 
   return count;
 }

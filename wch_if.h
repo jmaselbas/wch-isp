@@ -6,7 +6,7 @@
 struct wch_if;
 typedef struct wch_if* wch_if_t;
 
-typedef void (*wch_if_debug)(wch_if_t interface, char comment[], uint16_t len, uint8_t buf[]);
+typedef void (*wch_if_debug)(wch_if_t interface, char comment[], char dir_send, uint16_t len, uint8_t buf[]);
 
 struct wch_if{
   uint16_t maxdatasize;
@@ -14,6 +14,7 @@ struct wch_if{
   size_t (*recv)(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t data[]);
   void (*close)(wch_if_t *interface);
   wch_if_debug debug;
+  size_t dbg_content_start;
   void *intern;
 };
 
