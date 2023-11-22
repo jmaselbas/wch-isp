@@ -1,52 +1,66 @@
 wch-isp
 =======
 
-wch-isp is an utility to write firmware into the flash of WCH microcontrollers, over USB.
+wch-isp is an utility to write firmware into the flash of WCH microcontrollers, over USB or COM-port.
 This utility started as a rewrite in C of the rust tool [wchisp](https://github.com/ch32-rs/wchisp).
 
 ```
-usage: wch-isp [-VDnpr] [-d <uid>] COMMAND [ARG ...]
-       wch-isp [-VDnpr] [-d <uid>] [flash|write|verify|reset] FILE
-       wch-isp [-VDnpr] [-d <uid>] [erase|config|remove-wp]
-       wch-isp [-VDnpr] list
+usage: ./wch-isp [OPTIONS] COMMAND [ARG...]
+  OPTIONS:
+        -v           Print version and exit
+        -h, --help   Show this help and exit
+        -n           No verify after writing
+        -p           Show progress bar
+        -d           Debug mode, show raw commands
+        -r           Reset after command completed
+        --port=USB   Specify port as USB (default)
+        --port=/dev/ttyUSB0      Specify port as COM-port '/dev/ttyUSB0'
+        --port='//./COM3'        Specify port as COM-port '//./COM3'
+        --uid=AA-BB-CC-DD-EE-FF-GG-HH   Specify device UID
+        --reset=PIN  Use PIN as RESET
+        --boot0=PIN  Use PIN as Boot0
+            'PIN' may be 'RTS', 'DTR', 'nRTS' or 'nDTR'
+        --address=0x08000000     Write or verify data from specified address
 
-options:
-  -d <uid> Select the usb device that matches the uid
-  -n       No verify after writing to flash, done by default
-  -p       Print a progress-bar during command operation
-  -r       Reset after command completed
-  -D       Print raw isp command (for debug)
-  -V       Print version and exit
+  COMMAND:
+        write FILE    write file (.hex or .bin)
+        verify FILE   verify file (.hex ot .bin)
+        erase         erase all memory
+        list          show connected devices
+        unlock        remove write protection
+        info          show device info: bootloader version, option bytes, flash size etc
 ```
 
 This utility has been tested on:
- - CH32V103
- - CH569W
+ - CH32V307
 
 
 ## Examples
 
 List detected device in bootloader mode:
+
 ```sh
-$ wch-isp list
-0: BTVER v2.7 UID 8d-ff-ba-e4-c2-84-09-69 [0x1069] CH569
-1: BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+$ ./wch-isp list
+found bt ver 0209 uid = [87-80-CB-26-3B-38-8D-DF]
 ```
 
-Flash the `firmware.bin` file, `-p` enable the progress bar.
+Flash the `firmware.bin` file via USB, `-p` enable the progress.
+
 ```
-$ wch-isp -p flash firmware.bin
-BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
-[####################################################] write 35392/35392
-[####################################################] verify 35392/35392
-flash done
+$ ./wch-isp --port=USB -p write firmware.bin
+file size = 792
+Erase 1 sectors (1024 bytes)
+Write: 100.0 %   Write 792 bytes: DONE
+Verify: 100.0 %   Verify 792 bytes: DONE
 ```
 
-Erase the device's flash, select the device by it's uid (option `-d`).
+Verify the `firmware.hex` file via COM-port (reset connected to RTS, Boot0 connected to DTR):
+
 ```
-$ wch-isp -d f2-3e-88-26-3b-38-b5-9d erase
-BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
-erase done
+$ ./wch-isp --port=/dev/ttyUSB0 --reset=RTS --boot0=DTR verify firmware.hex
+file size = 792
+Verify 792 bytes: DONE
+
 ```
 
 ## Dependency
@@ -89,3 +103,13 @@ Then the `wch-isp.exe` binary can be run like so:
 ```
 PATH="$PATH:/mingw64/bin" ./wch-isp.exe
 ```
+
+## TODO:
+
+- Add database to read flash size, avaible option bytes values etc.
+
+- Add erase function (requires database)
+
+- Add option bytes write function (requires database)
+
+- Test compilling on Windows (Jules Maselbas probably tested it, but I (COKPOWEHEU) haven't yet)

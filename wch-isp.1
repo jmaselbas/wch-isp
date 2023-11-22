@@ -6,79 +6,67 @@ wch-isp \- firmware programmer for WCH microcontrollers
 .RI [ OPTIONS ]
 .I COMMAND
 .RI [ ARG ...]
-.P
-.B wch-isp
-.RB [ \-VDnpr ]
-.RB [ \-d
-.BR <uid> ]
-.RB [ flash | write | verify | reset ]
-.I FILE
-.P
-.B wch-isp
-.RB [ \-VDnpr ]
-.RB [ \-d
-.BR <uid> ]
-.RB [ erase | config | remove-wp ]
-.P
-.B wch-isp
-.RB [ \-VDnpr ]
-.RB [ \-d
-.BR <uid> ]
-.B list
 .SH DESCRIPTION
 .B wch-isp
-is an utility to write firmware into the flash of WCH microcontrollers, over USB.
+is an utility to write firmware into the flash of WCH microcontrollers, over USB or COM-port.
 By default the flash content is verified after writing.
 .SH OPTIONS
-.TP
-.B \-d <uid>
-Select the USB device that matches the uid.
 .TP
 .B \-n
 Do not verify flash content after writing, verification is done by default.
 .TP
 .B \-p
-Prints a progress bar during command operation.
+Prints a progress during command operation.
 .TP
 .B \-r
 Reset the microcontroller after the command is completed.
 .TP
-.B \-D
-Enable debug information, print raw isp commands sent over USB.
+.B \-d
+Enable debug information, print raw isp commands sent over USB or COM-port.
 .TP
-.B \-V
+.B \-v
 Prints version information to stdout, then exits.
+.TP
+.B \-h, --help
+Prints help message to stdout, then exits.
+.TP
+.B \--port=<PORT>
+Specify port to connect the device. It may be 'USB' or '/dev/ttyUSB0' or '//./COM2' or something else
+.TP
+.B \--uid=<uid>
+Select the microcontroller that matches the uid.
+.TP
+.B \--reset=<pin>
+Specify COM-port control pin as RESET signal. May be RTS, DTR, nRTS or nDTR
+.TP
+.B \--boot0=<pin>
+Specify COM-port control pin as Boot0 signal. May be RTS, DTR, nRTS or nDTR
+.TP
+.B \--address=<addr>
+Start writing from addr
 .SH COMMANDS
 .TP
 .B list
-List the currently detected compatible USB devices.
+List the currently detected compatible devices.
 .TP
 .BI write " FILE"
 Write
 .I FILE
 into flash, this will automatically erase sufficient flash sectors before writing to it.
 .TP
-.BI flash " FILE"
-Write
-.I FILE
-into flash, same as write.
-.TP
 .BI verify " FILE"
 Verify
 .I FILE
 content against the flash content.
 .TP
-.B reset
-Reset the microcontroller and jump to code flash.
-.TP
 .B erase
-Erase all the flash content.
+Erase all the flash content (not implemented yet).
 .TP
-.B config
-Print a memory dump of the chip configuration.
+.B unlock
+Disable flash write protection (modifies the chip configuration) (not implemented yet)
 .TP
-.B remove-wp
-Disable flash write protection (modifies the chip configuration).
+.B info
+Print a device information and memory dump of the chip configuration.
 .SH EXAMPLES
 .PP
 List detected devices:
@@ -86,33 +74,32 @@ List detected devices:
 .in +4n
 .EX
 .RB "$ " "wch-isp list"
-0: BTVER v2.7 UID 8d-ff-ba-e4-c2-84-09-69 [0x1069] CH569
-1: BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+found bt ver 0209 uid = [87-80-CB-26-3B-38-8D-DF]
 .EE
 .in
 .PP
 Flash the
 .B firmware.bin
-file,
+file via USB,
 .B \-p
 enable the progress bar.
 .PP
 .in +4n
 .EX
-.RB "$ " "wch-isp -p flash firmware.bin"
-BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
-[####################################################] write 35392/35392
-[####################################################] verify 35392/35392
-flash done
+.RB "$ " "./wch-isp --port=USB -p write firmware.bin"
+file size = 792
+Erase 1 sectors (1024 bytes)
+Write: 100.0 %   Write 792 bytes: DONE
+Verify: 100.0 %   Verify 792 bytes: DONE
 .EE
 .in
 .PP
-Erase the device's flash, select the device by it's uid (option
-.BR \-d ).
+Verify the
+.B firmware.bin
+via COM-port (reset connected to RTS, Boot0 connected to DTR):
 .PP
 .in +4n
 .EX
-.RB "$ " "wch-isp -d f2-3e-88-26-3b-38-b5-9d erase"
-BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
-erase done
-
+.RB "$ " "./wch-isp --port=/dev/ttyUSB0 --reset=RTS --boot0=DTR verify firmware.hex
+file size = 792
+Verify 792 bytes: DONE
