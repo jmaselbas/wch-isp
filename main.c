@@ -370,17 +370,19 @@ static char do_erase(isp_dev_t dev, size_t size){
 #define COMMAND_INFO	5
 
 struct{
-  int pin_rst:3;
-  int pin_boot:3;
-  int cmd:3;
-  int noverify:1;
-  int progress:1;
+  unsigned int pin_rst:3;
+  unsigned int pin_boot:3;
+  unsigned int cmd:3;
+  unsigned int noverify:1;
+  unsigned int progress:1;
+  unsigned int fin_reset:1;
 }run_flags = {
   .pin_rst = PIN_NONE,
   .pin_boot= PIN_NONE,
   .cmd = COMMAND_NONE,
   .noverify = 0,
   .progress = 0,
+  .fin_reset = 0,
 };
 
 static char do_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t size, uint8_t data[]){
@@ -538,6 +540,7 @@ void help(char name[]){
   printf("\t-n           No verify after writing\n");
   printf("\t-p           Show progress bar\n");
   printf("\t-d           Debug mode, show raw commands\n");
+  printf("\t-r           Reset after command completed\n");
   printf("\t--port=USB   Specify port as USB (default)\n");
   printf("\t--port=/dev/ttyUSB0 \t Specify port as COM-port '/dev/ttyUSB0'\n");
   printf("\t--port='//./COM3'   \t Specify port as COM-port '//./COM3'\n");
@@ -569,6 +572,7 @@ int main(int argc, char **argv){
           case 'n': run_flags.noverify = 1; break;
           case 'p': run_flags.progress = 1; break;
           case 'd': debug_func = debug; break;
+          case 'r': run_flags.fin_reset = 1; break;
           default: printf("Unknown option [-%c]\n", argv[i][j]); return -1;
         }
       }
@@ -661,9 +665,41 @@ int main(int argc, char **argv){
         }
       }
     }
-    // do_program(isp_dev_t dev, uint32_t addr, size_t size, uint8_t data[]){
+  } //COMMAND_WRITE, COMMAND_VERIFY
+  
+  if(run_flags.cmd == COMMAND_ERASE){
+#warning TODO    
   }
   
+  if(run_flags.cmd == COMMAND_INFO){
+    uint8_t buf[12];
+    uint32_t rpdrusr;
+    uint32_t data;
+    uint32_t wrp;
+    size_t len;
+    len = isp_cmd_read_config(&dev, CFG_MASK_RDPR_USER_DATA_WPR, sizeof(buf), buf);
+    if(len != 12){
+      fprintf(stderr, "Error reading info: not received enough bytes\n");
+      return 0;
+    }
+    rpdrusr = ((uint32_t)buf[0] << 0 ) | ((uint32_t)buf[1] << 8 ) |
+              ((uint32_t)buf[2] << 16) | ((uint32_t)buf[3] << 24);
+              
+    data    = ((uint32_t)buf[4] << 0 ) | ((uint32_t)buf[5] << 8 ) |
+              ((uint32_t)buf[6] << 16) | ((uint32_t)buf[7] << 24);
+              
+    wrp     = ((uint32_t)buf[8] << 0 ) | ((uint32_t)buf[9] << 8 ) |
+              ((uint32_t)buf[10]<< 16) | ((uint32_t)buf[11]<< 24);
+    printf("Device %.2X %.2X, UID=", dev.id, dev.type);
+    for(int i=0; i<7; i++)printf("%.2X-", dev.uid[i]);
+    printf("%.2X\n", dev.uid[7]);
+    printf("Bootloader v.%.4X\n", dev.bootloader_ver);
+    printf("RPDR_USER = 0x%.8X\n", rpdrusr);
+    printf("DATA      = 0x%.8X\n", data);
+    printf("WRP       = 0x%.8X\n", wrp);
+  }
+  
+  if(run_flags.fin_reset)isp_cmd_isp_end(&dev, 1);
   
   rtsdtr_release(dev.port);
   wch_if_close(&dev.port);
