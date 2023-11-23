@@ -13,9 +13,9 @@ ssize_t wch_if_uart_read(wch_if_uart_t tty, void *buf, size_t count);
 int wch_if_uart_timeout(wch_if_uart_t tty, ssize_t time_ms);
 
 
-static size_t uart_if_send(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t data[]);
-static size_t uart_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t data[]);
-#define TTY ( (wch_if_uart_t)(interface->intern) )
+static size_t uart_if_send(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t data[]);
+static size_t uart_if_recv(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t data[]);
+#define TTY ( (wch_if_uart_t)(interf->intern) )
 
 wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func, wch_if_debug debug_func ){
   if(portname == NULL){fprintf(stderr, "portname = NULL\n"); return NULL;}
@@ -42,7 +42,7 @@ wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func, wch_if_debug
   return port;
 }
 
-static size_t uart_if_send(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t data[]){
+static size_t uart_if_send(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t data[]){
   uint8_t buf[67];
   if(len > (sizeof(buf)-6)){
     fprintf(stderr, "uart_if_send: invalid argument, length %d\n", len);
@@ -58,7 +58,7 @@ static size_t uart_if_send(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_
   for(int i=2; i<(len+5); i++)sum += buf[i];
   buf[len+5] = sum;
   
-  if( interface->debug )interface->debug(interface, "uart_if_send", 1, len+6, buf);
+  if( interf->debug )interf->debug(interf, "uart_if_send", 1, len+6, buf);
   
   int res = wch_if_uart_write(TTY, buf, len+6);
   if(res != (len+6)){fprintf(stderr, "uart_if_send error\n"); return 0;}
@@ -73,7 +73,7 @@ static size_t uart_if_send(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_
 //    [4:5] = len
 //    [6 .. len+5] = data
 //    [len+6] = checksum
-static size_t uart_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_t data[]){
+static size_t uart_if_recv(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t data[]){
   uint8_t buf[67];
   int res;
   uint16_t datalen;
@@ -95,19 +95,19 @@ static size_t uart_if_recv(wch_if_t interface, uint8_t cmd, uint16_t len, uint8_
   for(int i=2; i<(datalen+6); i++)sum+=buf[i];
   if(buf[datalen+6] != sum)printf("uart_if_recv: checksum error: %.2X (exp. %.2X)\n", buf[datalen+6], sum);
   
-  if( interface->debug )interface->debug(interface, "uart_if_recv", 0, len+7, buf);
+  if( interf->debug )interf->debug(interf, "uart_if_recv", 0, len+7, buf);
   
   if(len > datalen)len = datalen;
   if(data != NULL)memcpy(data, &buf[6], len);
   return len;
 }
 
-void wch_if_close_uart(wch_if_t *interface){
-  wch_if_uart_t tty = ( (wch_if_uart_t)((*interface)->intern) );
+void wch_if_close_uart(wch_if_t *interf){
+  wch_if_uart_t tty = ( (wch_if_uart_t)((*interf)->intern) );
   wch_if_uart_close(tty);
   
-  free(*interface);
-  *interface = NULL;
+  free(*interf);
+  *interf = NULL;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -246,7 +246,7 @@ int wch_if_uart_timeout(wch_if_uart_t tty, ssize_t time_ms){
   return 0;
 }
 
-void wch_if_uart_rts(wch_if_t interface, char state){
+void wch_if_uart_rts(wch_if_t interf, char state){
   int flags;
   state = !state;
   ioctl(TTY->fd, TIOCMGET, &flags);
@@ -254,7 +254,7 @@ void wch_if_uart_rts(wch_if_t interface, char state){
   ioctl(TTY->fd, TIOCMSET, &flags);
 }
 
-void wch_if_uart_dtr(wch_if_t interface, char state){
+void wch_if_uart_dtr(wch_if_t interf, char state){
   int flags;
   state = !state;
   ioctl(TTY->fd, TIOCMGET, &flags);
@@ -372,13 +372,13 @@ int wch_if_uart_timeout(wch_if_uart_t tty, ssize_t time_ms){
   return 0;
 }
 
-void wch_if_uart_rts(wch_if_t interface, char state){
+void wch_if_uart_rts(wch_if_t interf, char state){
   DWORD code;
   if(state)code = IOCTL_SERIAL_CLR_RTS; else code = IOCTL_SERIAL_SET_RTS;
   DeviceIoControl(TTY->handle, code, NULL, 0, NULL, 0, NULL, NULL);
 }
 
-void wch_if_uart_dtr(wch_if_t interface, char state){
+void wch_if_uart_dtr(wch_if_t interf, char state){
   DWORD code;
   if(state)code = IOCTL_SERIAL_CLR_DTR; else code = IOCTL_SERIAL_SET_DTR;
   DeviceIoControl(TTY->handle, code, NULL, 0, NULL, 0, NULL, NULL);

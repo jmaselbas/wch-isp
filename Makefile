@@ -6,16 +6,17 @@ PREFIX = /usr/local
 MANPREFIX = $(PREFIX)/share/man
 UDEVPREFIX = /etc/udev
 
+#make CROSS_COMPILE=i686-w64-mingw32- INCS="-Imingw32/include" LIBS="-Lmingw32/lib mingw32/bin/libusb-1.0.dll"
 ifneq ($(CROSS_COMPILE),)
-CC = $(CROSS_COMPILE)cc
+CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
 endif
 
 PKG_CONFIG = pkg-config
 
 # include and libs
-INCS = `$(PKG_CONFIG) --cflags libusb-1.0`
-LIBS = `$(PKG_CONFIG) --libs libusb-1.0`
+INCS += `$(PKG_CONFIG) --cflags libusb-1.0`
+LIBS += `$(PKG_CONFIG) --libs libusb-1.0`
 
 # Flags
 WCHISP_CPPFLAGS = -DVERSION=\"$(VERSION)\" $(CPPFLAGS)
