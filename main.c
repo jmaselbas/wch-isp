@@ -4,8 +4,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include "wch_if.h"
-//TODO: change to reading YAML database from wch-isp-rust
-//#include "devices.h"
+#include "wch_yaml_parse.h"
 
 /*
  *  All readable and writable registers.
@@ -46,8 +45,8 @@ typedef struct{
   uint8_t uid[8];
   uint16_t bootloader_ver;
   uint8_t xor_key[8];
+  uint32_t optionbytes[3];
   wch_if_t port;
-  //info from database
   char *name;
 }isp_dev;
 typedef isp_dev* isp_dev_t;
@@ -342,6 +341,24 @@ static char dev_readinfo(isp_dev_t dev){
   return 1;
 }
 
+static char dev_read_options(isp_dev_t dev){
+  uint8_t buf[12];
+  size_t len;
+  len = isp_cmd_read_config(dev, CFG_MASK_RDPR_USER_DATA_WPR, sizeof(buf), buf);
+  if(len != 12){fprintf(stderr, "Error reading info: not received enough bytes\n"); return 0;}
+  //printf("DEBUG optionbytes: "); for(int i=0; i<12; i++)printf("%.2X ", buf[i]); printf("\n");
+  
+  dev->optionbytes[0] = ((uint32_t)buf[0] << 0 ) | ((uint32_t)buf[1] << 8 ) |
+                        ((uint32_t)buf[2] << 16) | ((uint32_t)buf[3] << 24);
+            
+  dev->optionbytes[1] = ((uint32_t)buf[4] << 0 ) | ((uint32_t)buf[5] << 8 ) |
+                        ((uint32_t)buf[6] << 16) | ((uint32_t)buf[7] << 24);
+            
+  dev->optionbytes[2] = ((uint32_t)buf[8] << 0 ) | ((uint32_t)buf[9] << 8 ) |
+                        ((uint32_t)buf[10]<< 16) | ((uint32_t)buf[11]<< 24);
+  return 1;
+}
+
 void progressbar(char comment[], float per){
   printf("\r%s%2.1f %%   ", comment, per);
   fflush(stdout);
@@ -361,21 +378,24 @@ static char do_erase(isp_dev_t dev, size_t size){
 #define PIN_nRTS	3
 #define PIN_nDTR	4
 
-#define COMMAND_ERR		7
+#define COMMAND_ERR	15
 #define COMMAND_NONE	0
 #define COMMAND_WRITE	1
 #define COMMAND_VERIFY	2
 #define COMMAND_ERASE	3
 #define COMMAND_UNLOCK	4
 #define COMMAND_INFO	5
+#define COMMAND_OPTION	6
+#define COMMAND_OPTSHOW	7
 
 struct{
   unsigned int pin_rst:3;
   unsigned int pin_boot:3;
-  unsigned int cmd:3;
+  unsigned int cmd:4;
   unsigned int noverify:1;
   unsigned int progress:1;
   unsigned int fin_reset:1;
+  unsigned int db_ignore:1;
 }run_flags = {
   .pin_rst = PIN_NONE,
   .pin_boot= PIN_NONE,
@@ -383,6 +403,7 @@ struct{
   .noverify = 0,
   .progress = 0,
   .fin_reset = 0,
+  .db_ignore = 0.
 };
 
 static char do_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t size, uint8_t data[]){
@@ -405,6 +426,18 @@ static char do_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t size, uint
   }
   if(cmd == CMD_PROGRAM)isp_cmd_bulk(dev, cmd, addr, 0, NULL);
   return 1;
+}
+
+void command_info(isp_dev_t dev, wch_info_t *info){
+  printf("Device %.2X %.2X, UID=", dev->id, dev->type);
+  for(int i=0; i<7; i++)printf("%.2X-", dev->uid[i]);
+  printf("%.2X\n", dev->uid[7]);
+  printf("Bootloader v.%.4X\n", dev->bootloader_ver);
+  if(!dev_read_options(dev))return;
+  if(info){
+    wch_info_regs_import(info, dev->optionbytes, sizeof(dev->optionbytes)/sizeof(dev->optionbytes[0]));
+    wch_info_show(info);
+  }
 }
 
 void pin_rst_ctl(wch_if_t self, char state){
@@ -452,9 +485,9 @@ static char match_dev_list(wch_if_t self){
   isp_cmd_identify(&dev);
   if(dev.id == 0 || dev.type == 0)return 0;
   dev_readinfo(&dev);
-  printf("found bt ver %.4X uid = [", dev.bootloader_ver);
+  printf("found bt ver %.4X uid = [ ", dev.bootloader_ver);
   for(int i=0; i<7; i++)printf("%.2X-", dev.uid[i]);
-  printf("%.2X]\n", dev.uid[7]);
+  printf("%.2X ]\n", dev.uid[7]);
   return 0;
 }
 static char match_dev_uid(wch_if_t self){
@@ -523,6 +556,8 @@ int rtsdtr_decode(char *str){
 typedef char (*command_t)(isp_dev_t);
 char *port_name = "usb";
 char *filename = NULL;
+char *optionstr = NULL;
+const char optstr_unlock_RDPR[] = "RDPR=0xA5";
 wch_if_debug debug_func = NULL;
 wch_if_match match_func = match_rtsdtr;
 uint32_t writeaddr = 0;
@@ -541,6 +576,7 @@ void help(char name[]){
   printf("\t-p           Show progress bar\n");
   printf("\t-d           Debug mode, show raw commands\n");
   printf("\t-r           Reset after command completed\n");
+  printf("\t-b           Do not read database\n");
   printf("\t--port=USB   Specify port as USB (default)\n");
   printf("\t--port=/dev/ttyUSB0 \t Specify port as COM-port '/dev/ttyUSB0'\n");
   printf("\t--port='//./COM3'   \t Specify port as COM-port '//./COM3'\n");
@@ -553,12 +589,15 @@ void help(char name[]){
   
   printf("\n");
   printf("  COMMAND:\n");
-  printf("\twrite FILE    write file (.hex or .bin)\n");
-  printf("\tverify FILE   verify file (.hex ot .bin)\n");
-  printf("\terase         erase all memory\n");
-  printf("\tlist          show connected devices\n");
-  printf("\tunlock        remove write protection\n");
-  printf("\tinfo          show device info: bootloader version, option bytes, flash size etc\n");
+  printf("\twrite FILE        write file (.hex or .bin)\n");
+  printf("\tverify FILE       verify file (.hex ot .bin)\n");
+  printf("\terase             erase all memory\n");
+  printf("\tlist              show connected devices\n");
+  printf("\tunlock            remove write protection\n");
+  printf("\tinfo              show device info: bootloader version, option bytes, flash size etc\n");
+  printf("\toptionbytes 'CMD' change optionbytes\n");
+  printf("\t    example: %s optionbytes 'RDPR=0xA5, DATA0 = 0x42'\n", name);
+  printf("\toptionshow 'CMD'  show changes after apply CMD to optionbytes; Do not write\n");
 }
 
 #define StrEq(str, sample) (strncmp(str, sample, sizeof(sample)-1) == 0)
@@ -573,6 +612,7 @@ int main(int argc, char **argv){
           case 'p': run_flags.progress = 1; break;
           case 'd': debug_func = debug; break;
           case 'r': run_flags.fin_reset = 1; break;
+          case 'b': run_flags.db_ignore = 1; break;
           default: printf("Unknown option [-%c]\n", argv[i][j]); return -1;
         }
       }
@@ -608,6 +648,14 @@ int main(int argc, char **argv){
       run_flags.cmd = COMMAND_UNLOCK;
     }else if(StrEq(argv[i], "info")){
       run_flags.cmd = COMMAND_INFO;
+    }else if(StrEq(argv[i], "optionbytes")){
+      run_flags.cmd = COMMAND_OPTION;
+      optionstr = argv[i+1];
+      i++;
+    }else if(StrEq(argv[i], "optionshow")){
+      run_flags.cmd = COMMAND_OPTSHOW;
+      optionstr = argv[i+1];
+      i++;
     }else{
       fprintf(stderr, "Unknown command [%s]\n", argv[i]); return -1;
     }
@@ -630,12 +678,22 @@ int main(int argc, char **argv){
   isp_cmd_identify(&dev);
   if( !dev_readinfo(&dev) )run_flags.cmd = COMMAND_ERR;
   
+  wch_info_t *info = NULL;
+  if(!run_flags.db_ignore){
+    info = wch_info_read_dir("devices", 1, dev.type, dev.id);
+    if(info == NULL){
+      fprintf(stderr, "Could not find the device [0x%.2X 0x%.2X] in databse\n", dev.type ,dev.id);
+      run_flags.cmd = COMMAND_ERR;
+    }
+  }
+  
+  
   if(run_flags.cmd == COMMAND_WRITE || run_flags.cmd == COMMAND_VERIFY){
     uint8_t *data = NULL;
     size_t size = 0;
     char res = 0;
     file_read(filename, &size, &data);
-    printf("file size = %zu\n", size);
+    //printf("file size = %zu\n", size);
     
     if(data != NULL){
       uint8_t isp_key[30] = {0};
@@ -668,38 +726,58 @@ int main(int argc, char **argv){
   } //COMMAND_WRITE, COMMAND_VERIFY
   
   if(run_flags.cmd == COMMAND_ERASE){
-#warning TODO    
+    if(info == NULL || info->errflag || info->flash_size == 0){
+      fprintf(stderr, "Reading database failed but it necessary for correct execution of the command\n");
+    }else{
+      char res = do_erase(&dev, info->flash_size);
+      if(!res){
+        printf("Erase: FAIL\n");
+      }  
+    }
   }
   
-  if(run_flags.cmd == COMMAND_INFO){
-    uint8_t buf[12];
-    uint32_t rpdrusr;
-    uint32_t data;
-    uint32_t wrp;
-    size_t len;
-    len = isp_cmd_read_config(&dev, CFG_MASK_RDPR_USER_DATA_WPR, sizeof(buf), buf);
-    if(len != 12){
-      fprintf(stderr, "Error reading info: not received enough bytes\n");
-      return 0;
+  if(run_flags.cmd == COMMAND_INFO)command_info(&dev, info);
+  
+  do{
+    if(run_flags.cmd == COMMAND_OPTION || run_flags.cmd == COMMAND_OPTSHOW || run_flags.cmd == COMMAND_UNLOCK){
+      if(run_flags.cmd == COMMAND_UNLOCK){
+        #warning TODO: Some controllers may have another way to unlock
+        optionstr = (char*)optstr_unlock_RDPR;
+      }
+      if(info == NULL || info->errflag){
+        fprintf(stderr, "Reading database failed but it necessary for correct execution of the command\n");
+        break;
+      }
+      //printf("optionstr = [%s]\n", optionstr);
+        
+      char res = dev_read_options(&dev);
+      if(!res){fprintf(stderr, "Reading option bytes from MCU: failed\n"); break;}
+      wch_info_regs_import(info, dev.optionbytes, sizeof(dev.optionbytes)/sizeof(dev.optionbytes[0]));
+      res = wch_info_modify(info, optionstr);
+      if(!res){fprintf(stderr, "Can not apply command '%s' to optionbytes\n", optionstr); break;}
+      
+      if(run_flags.cmd == COMMAND_OPTSHOW){
+        wch_info_show(info);
+      }else{
+        uint32_t regs[3];
+        uint8_t data[12];
+        wch_info_regs_export(info, regs, sizeof(regs)/sizeof(regs[0]));
+        data[0] = (regs[0] >> 0) & 0xFF; data[1] = (regs[0] >> 8) & 0xFF;
+        data[2] = (regs[0] >>16) & 0xFF; data[3] = (regs[0] >>24) & 0xFF;
+        data[4] = (regs[1] >> 0) & 0xFF; data[5] = (regs[1] >> 8) & 0xFF;
+        data[6] = (regs[1] >>16) & 0xFF; data[7] = (regs[1] >>24) & 0xFF;
+        data[8] = (regs[2] >> 0) & 0xFF; data[9] = (regs[2] >> 8) & 0xFF;
+        data[10]= (regs[2] >>16) & 0xFF; data[11]= (regs[2] >>24) & 0xFF;
+        //printf("DEBUG result     : "); for(int i=0; i<12; i++)printf("%.2X ", data[i]); printf("\n");
+        isp_cmd_write_config(&dev, CFG_MASK_RDPR_USER_DATA_WPR, sizeof(data), data);
+        printf("Optionbytes: done\n");
+      }
     }
-    rpdrusr = ((uint32_t)buf[0] << 0 ) | ((uint32_t)buf[1] << 8 ) |
-              ((uint32_t)buf[2] << 16) | ((uint32_t)buf[3] << 24);
-              
-    data    = ((uint32_t)buf[4] << 0 ) | ((uint32_t)buf[5] << 8 ) |
-              ((uint32_t)buf[6] << 16) | ((uint32_t)buf[7] << 24);
-              
-    wrp     = ((uint32_t)buf[8] << 0 ) | ((uint32_t)buf[9] << 8 ) |
-              ((uint32_t)buf[10]<< 16) | ((uint32_t)buf[11]<< 24);
-    printf("Device %.2X %.2X, UID=", dev.id, dev.type);
-    for(int i=0; i<7; i++)printf("%.2X-", dev.uid[i]);
-    printf("%.2X\n", dev.uid[7]);
-    printf("Bootloader v.%.4X\n", dev.bootloader_ver);
-    printf("RPDR_USER = 0x%.8X\n", rpdrusr);
-    printf("DATA      = 0x%.8X\n", data);
-    printf("WRP       = 0x%.8X\n", wrp);
-  }
+  }while(0);
   
   if(run_flags.fin_reset)isp_cmd_isp_end(&dev, 1);
+  
+  wch_info_free(&info);
   
   rtsdtr_release(dev.port);
   wch_if_close(&dev.port);

@@ -67,6 +67,13 @@ Disable flash write protection (modifies the chip configuration) (not implemente
 .TP
 .B info
 Print a device information and memory dump of the chip configuration.
+.TP
+.BI optionbytes 'CMD'
+change optionbytes
+ example: ./wch-isp optionbytes 'RDPR=0xA5, DATA0 = 0x42'
+.TP
+.BI optionshow 'CMD'
+show changes after apply CMD to optionbytes; Do not write
 .SH EXAMPLES
 .PP
 List detected devices:
@@ -74,7 +81,7 @@ List detected devices:
 .in +4n
 .EX
 .RB "$ " "wch-isp list"
-found bt ver 0209 uid = [87-80-CB-26-3B-38-8D-DF]
+found bt ver 0209 uid = [ 87-80-CB-26-3B-38-8D-DF ]
 .EE
 .in
 .PP
@@ -103,3 +110,14 @@ via COM-port (reset connected to RTS, Boot0 connected to DTR):
 .RB "$ " "./wch-isp --port=/dev/ttyUSB0 --reset=RTS --boot0=DTR verify firmware.hex
 file size = 792
 Verify 792 bytes: DONE
+
+.EE
+.in
+.PP
+Unlock read-protection and write 0x42 to DATA0 field in optionbytes:
+.PP
+.in +4n
+.EX
+.RB "$ " "./wch-isp optionbytes 'RDPR=0xA5 DATA0 = 0x42'
+Optionbytes: done
+

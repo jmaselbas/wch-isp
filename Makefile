@@ -6,7 +6,7 @@ PREFIX = /usr/local
 MANPREFIX = $(PREFIX)/share/man
 UDEVPREFIX = /etc/udev
 
-#make CROSS_COMPILE=i686-w64-mingw32- INCS="-Imingw32/include" LIBS="-Lmingw32/lib mingw32/bin/libusb-1.0.dll"
+#make CROSS_COMPILE=i686-w64-mingw32- INCS="-Imingw32/include -Imingw32/include/libusb-1.0" LIBS="-Lmingw32/lib mingw32/bin/libusb-1.0.dll -lyaml"
 ifneq ($(CROSS_COMPILE),)
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld
@@ -15,15 +15,15 @@ endif
 PKG_CONFIG = pkg-config
 
 # include and libs
-INCS += `$(PKG_CONFIG) --cflags libusb-1.0`
-LIBS += `$(PKG_CONFIG) --libs libusb-1.0`
+INCS += `$(PKG_CONFIG) --cflags libusb-1.0`  `$(PKG_CONFIG) --cflags yaml-0.1`
+LIBS += `$(PKG_CONFIG) --libs libusb-1.0`  `$(PKG_CONFIG) --libs yaml-0.1`
 
 # Flags
 WCHISP_CPPFLAGS = -DVERSION=\"$(VERSION)\" $(CPPFLAGS)
 WCHISP_CFLAGS = -Wall -O2 $(INCS) $(CFLAGS)
 WCHISP_LDFLAGS = $(LIBS) $(LDFLAGS)
 
-SRC = main.c wch_if_usb.c wch_if_uart.c
+SRC = main.c wch_if_usb.c wch_if_uart.c wch_yaml_parse.c
 #SRC = wch-isp.c
 HDR = arg.h devices.h
 OBJ = $(SRC:.c=.o)
@@ -32,8 +32,6 @@ MAN = wch-isp.1
 DISTFILES = $(SRC) $(HDR) $(MAN) 50-wchisp.rules Makefile
 
 all: $(BIN)
-
-$(OBJ): arg.h devices.h
 
 $(BIN): $(OBJ)
 	$(CC) -o $@ $^ $(WCHISP_LDFLAGS)

@@ -29,10 +29,14 @@ usage: ./wch-isp [OPTIONS] COMMAND [ARG...]
         list          show connected devices
         unlock        remove write protection
         info          show device info: bootloader version, option bytes, flash size etc
+        optionbytes 'CMD' change optionbytes
+            example: ./wch-isp optionbytes 'RDPR=0xA5, DATA0 = 0x42'
+        optionshow 'CMD'  show changes after apply CMD to optionbytes; Do not write
 ```
 
 This utility has been tested on:
- - CH32V307
+ - CH32V307RCT6
+ - CH32V203G8R6
 
 
 ## Examples
@@ -41,12 +45,12 @@ List detected device in bootloader mode:
 
 ```sh
 $ ./wch-isp list
-found bt ver 0209 uid = [87-80-CB-26-3B-38-8D-DF]
+found bt ver 0209 uid = [ 87-80-CB-26-3B-38-8D-DF ]
 ```
 
 Flash the `firmware.bin` file via USB, `-p` enable the progress.
 
-```
+```sh
 $ ./wch-isp --port=USB -p write firmware.bin
 file size = 792
 Erase 1 sectors (1024 bytes)
@@ -56,16 +60,24 @@ Verify: 100.0 %   Verify 792 bytes: DONE
 
 Verify the `firmware.hex` file via COM-port (reset connected to RTS, Boot0 connected to DTR):
 
-```
+```sh
 $ ./wch-isp --port=/dev/ttyUSB0 --reset=RTS --boot0=DTR verify firmware.hex
 file size = 792
 Verify 792 bytes: DONE
 
 ```
 
+Unlock read-protection and write 0x42 to DATA0 field in optionbytes:
+
+```sh
+$ ./wch-isp optionbytes 'RDPR=0xA5 DATA0 = 0x42'
+Optionbytes: done
+
+```
+
 ## Dependency
 
-wch-isp depends on libusb 1.0 or above.
+wch-isp depends on **libusb-1.0** and **yaml-0.1** or above.
 
 ## How to build
 
