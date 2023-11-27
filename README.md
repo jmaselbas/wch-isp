@@ -16,6 +16,7 @@ usage: ./wch-isp [OPTIONS] COMMAND [ARG...]
         --port=USB   Specify port as USB (default)
         --port=/dev/ttyUSB0      Specify port as COM-port '/dev/ttyUSB0'
         --port='//./COM3'        Specify port as COM-port '//./COM3'
+        --device=DEV Test if connected device is DEV and exit if they differ
         --uid=AA-BB-CC-DD-EE-FF-GG-HH   Specify device UID
         --reset=PIN  Use PIN as RESET
         --boot0=PIN  Use PIN as Boot0
@@ -52,7 +53,6 @@ Flash the `firmware.bin` file via USB, `-p` enable the progress.
 
 ```sh
 $ ./wch-isp --port=USB -p write firmware.bin
-file size = 792
 Erase 1 sectors (1024 bytes)
 Write: 100.0 %   Write 792 bytes: DONE
 Verify: 100.0 %   Verify 792 bytes: DONE
@@ -62,7 +62,6 @@ Verify the `firmware.hex` file via COM-port (reset connected to RTS, Boot0 conne
 
 ```sh
 $ ./wch-isp --port=/dev/ttyUSB0 --reset=RTS --boot0=DTR verify firmware.hex
-file size = 792
 Verify 792 bytes: DONE
 
 ```
@@ -70,8 +69,12 @@ Verify 792 bytes: DONE
 Unlock read-protection and write 0x42 to DATA0 field in optionbytes:
 
 ```sh
-$ ./wch-isp optionbytes 'RDPR=0xA5 DATA0 = 0x42'
-Optionbytes: done
+$ ./wch-isp --device=CH32V203G8R6 optionbytes 'RDPR=0xA5 DATA0 = 0x42'
+Option bytes write:
+  0xC03F5AA5
+  0xBA45BD42
+  0xFFFFFFFF
+Done
 
 ```
 
@@ -98,6 +101,16 @@ Default udev rules are provided and can be installed with this command:
 make install-rules
 ```
 
+### Cross-compilling using mingw32
+
+Download and unarchive **mingw-w64-i686-libusb** and **mingw-w64-i686-libyaml** into special directory, for example, ```lib/mingw32```. Then execute makefile:
+
+```
+make CROSS_COMPILE=i686-w64-mingw32- INCS="-Imingw32/include -Imingw32/include/libusb-1.0" LIBS="-Lmingw32/lib mingw32/bin/libusb-1.0.dll -lyaml"
+```
+
+Comilled binary will reqire **libusb-1.0.dll**, **libyaml-0-2.dll** (from ```lib/mingw32/bin```) and **libgcc_s_dw2-1.dll** (in my system: ```/usr/lib/gcc/i686-w64-mingw32/10-win32/libgcc_s_dw2-1.dll```)
+
 ### Windows using MSYS2
 
 On Windows the build is done using MSYS2 and mingw64, you can install this from https://www.msys2.org
@@ -117,11 +130,5 @@ PATH="$PATH:/mingw64/bin" ./wch-isp.exe
 ```
 
 ## TODO:
-
-- Add database to read flash size, avaible option bytes values etc.
-
-- Add erase function (requires database)
-
-- Add option bytes write function (requires database)
 
 - Test compilling on Windows (Jules Maselbas probably tested it, but I (COKPOWEHEU) haven't yet)

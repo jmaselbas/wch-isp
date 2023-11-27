@@ -33,6 +33,10 @@ Prints help message to stdout, then exits.
 .B \--port=<PORT>
 Specify port to connect the device. It may be 'USB' or '/dev/ttyUSB0' or '//./COM2' or something else
 .TP
+.B \--device=<DEV>
+Test if connected device is DEV and exit if they differ. <DEV> may be read by 'info' option.
+Example: --device=CH32V203G8R6
+.TP
 .B \--uid=<uid>
 Select the microcontroller that matches the uid.
 .TP
@@ -94,7 +98,6 @@ enable the progress bar.
 .in +4n
 .EX
 .RB "$ " "./wch-isp --port=USB -p write firmware.bin"
-file size = 792
 Erase 1 sectors (1024 bytes)
 Write: 100.0 %   Write 792 bytes: DONE
 Verify: 100.0 %   Verify 792 bytes: DONE
@@ -108,7 +111,6 @@ via COM-port (reset connected to RTS, Boot0 connected to DTR):
 .in +4n
 .EX
 .RB "$ " "./wch-isp --port=/dev/ttyUSB0 --reset=RTS --boot0=DTR verify firmware.hex
-file size = 792
 Verify 792 bytes: DONE
 
 .EE
@@ -118,6 +120,10 @@ Unlock read-protection and write 0x42 to DATA0 field in optionbytes:
 .PP
 .in +4n
 .EX
-.RB "$ " "./wch-isp optionbytes 'RDPR=0xA5 DATA0 = 0x42'
-Optionbytes: done
+.RB "$ " "./wch-isp optionbytes 'RDPR=0xA5 DATA0 = 0x42'"
+Option bytes write:
+  0xC03F5AA5
+  0xBA45BD42
+  0xFFFFFFFF
+Done
 
