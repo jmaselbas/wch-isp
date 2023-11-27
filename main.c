@@ -555,6 +555,7 @@ int rtsdtr_decode(char *str){
 
 typedef char (*command_t)(isp_dev_t);
 char *port_name = "usb";
+char *dev_name = NULL;
 char *filename = NULL;
 char *optionstr = NULL;
 const char optstr_unlock_RDPR[] = "RDPR=0xA5";
@@ -580,6 +581,7 @@ void help(char name[]){
   printf("\t--port=USB   Specify port as USB (default)\n");
   printf("\t--port=/dev/ttyUSB0 \t Specify port as COM-port '/dev/ttyUSB0'\n");
   printf("\t--port='//./COM3'   \t Specify port as COM-port '//./COM3'\n");
+  printf("\t--device=DEV Test if connected device is DEV and exit if they differ\n");
   printf("\t--uid=AA-BB-CC-DD-EE-FF-GG-HH \tSpecify device UID\n");
   printf("\t--reset=PIN  Use PIN as RESET\n");
   printf("\t--boot0=PIN  Use PIN as Boot0\n");
@@ -620,6 +622,8 @@ int main(int argc, char **argv){
       help(argv[0]); return 0;
     }else if(StrEq(argv[i], "--port=")){
       port_name = &argv[i][7];
+    }else if(StrEq(argv[i], "--device=")){
+      dev_name = &argv[i][9];
     }else if(StrEq(argv[i], "--uid=")){
       dev_uid = &argv[i][6];
       match_dev_uid(NULL);
@@ -685,6 +689,10 @@ int main(int argc, char **argv){
       fprintf(stderr, "Could not find the device [0x%.2X 0x%.2X] in databse\n", dev.type ,dev.id);
       run_flags.cmd = COMMAND_ERR;
     }
+    if(dev_name && strcasecmp(dev_name, info->name)!=0){
+      printf("Connected device is [ %s ] instead of [ %s ]\n", info->name, dev_name);
+      run_flags.cmd = COMMAND_ERR;
+    }
   }
   
   
@@ -694,6 +702,20 @@ int main(int argc, char **argv){
     char res = 0;
     file_read(filename, &size, &data);
     //printf("file size = %zu\n", size);
+    if(!run_flags.db_ignore){
+      if(info->errflag || info->flash_size == 0){
+        fprintf(stderr, "Error reading databse\n");
+        free(data);
+        data = NULL;
+        run_flags.cmd = COMMAND_ERR;
+      }
+      if(size > info->flash_size){
+        fprintf(stderr, "Firmware size (%zu kB) more then avaible flash (%zu kB)\n", (size_t)(size+1023)/1024, (size_t)(info->flash_size + 1023)/1024);
+        free(data);
+        data = NULL;
+        run_flags.cmd = COMMAND_ERR;
+      }
+    }
     
     if(data != NULL){
       uint8_t isp_key[30] = {0};
@@ -722,6 +744,7 @@ int main(int argc, char **argv){
           printf("Verify %zu bytes: DONE\n", size);
         }
       }
+      free(data);
     }
   } //COMMAND_WRITE, COMMAND_VERIFY
   
@@ -770,7 +793,7 @@ int main(int argc, char **argv){
         data[10]= (regs[2] >>16) & 0xFF; data[11]= (regs[2] >>24) & 0xFF;
         //printf("DEBUG result     : "); for(int i=0; i<12; i++)printf("%.2X ", data[i]); printf("\n");
         isp_cmd_write_config(&dev, CFG_MASK_RDPR_USER_DATA_WPR, sizeof(data), data);
-        printf("Optionbytes: done\n");
+        printf("Option bytes write:\n  0x%.8X\n  0x%.8X\n  0x%.8X\nDone\n", regs[0], regs[1], regs[2]);
       }
     }
   }while(0);
