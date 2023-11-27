@@ -747,31 +747,3 @@ wch_info_t* wch_info_read_dir(char dirname[], char recur, uint8_t type, uint8_t 
 #else
   #error "Unsupported platform"
 #endif
-
-
-int main2(){
-  wch_info_t *info;
-  //info = wch_info_read_file("devices/0x10-CH56x.yaml", 0x17, 0x71);
-  //info = wch_info_read_file("devices/0x17-CH32V30x.yaml", 0x17, 0x71);
-  
-  info = wch_info_read_dir("devices", 1, 0x17, 0x71);
-  if(info == NULL){printf("err: not found\n"); return 0;}
-  wch_info_show(info);
-  wch_info_free(&info);
-}
-
-int main1(){
-  wch_info_t *info = wch_info_read_file("devices/0x17-CH32V30x.yaml", 0x17, 0x71);
-  if(info == NULL){printf("err\n");}
-  uint32_t read_regs[3] = {0x00FF5AA5, 0xFF00FF00, 0xFFFFFFFF};
-  wch_info_show(info);
-  wch_info_regs_import(info, read_regs, 3);
-  //wch_info_modify(info, "SRAM_CODE_MODE= a");
-  if(info->errflag){
-    printf("Errflag\n");
-  }
-  //printf("-------\n");
-  //wch_info_show(info);
-  wch_info_free(&info);
-  return 0;
-}
