@@ -52,7 +52,7 @@ typedef struct{
 typedef isp_dev* isp_dev_t;
 
 //read id, type
-static void isp_cmd_identify(isp_dev_t dev);
+static char isp_cmd_identify(isp_dev_t dev);
 //read (uid | bootloader_ver | user option bytes) by cfgmask
 static size_t isp_cmd_read_config(isp_dev_t dev, uint16_t cfgmask, size_t len, uint8_t data[]);
 //
@@ -72,13 +72,14 @@ static size_t isp_cmd_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t len
 //     ISP commands
 ////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////
-static void isp_cmd_identify(isp_dev_t dev){
-  if(dev->port == NULL){fprintf(stderr, "isp_cmd_identify: wch_if is NULL\n"); return;}
+static char isp_cmd_identify(isp_dev_t dev){
+  if(dev->port == NULL){fprintf(stderr, "isp_cmd_identify: wch_if is NULL\n"); return 0;}
   uint8_t buf[] = "\0\0MCU ISP & WCH.CN";
   dev->port->send(dev->port, CMD_IDENTIFY, sizeof(buf)-1, buf);
-  dev->port->recv(dev->port, CMD_IDENTIFY, 2, buf);
+  char res = dev->port->recv(dev->port, CMD_IDENTIFY, 2, buf);
   dev->id = buf[0];
   dev->type = buf[1];
+  return res;
 }
 
 static size_t isp_cmd_read_config(isp_dev_t dev, uint16_t cfgmask, size_t len, uint8_t data[]){
@@ -418,9 +419,10 @@ static char do_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t size, uint
     
   while(sz>0){
     count = sz;
-    res = isp_cmd_bulk(dev, cmd, addr, count, &data[addr]);
+    res = isp_cmd_bulk(dev, cmd, addr, count, data);
     if(res == 0)return 0;
     addr += res;
+    data += res;
     sz -= res;
     if(run_flags.progress)progressbar(name, 100.0 - 100.0*sz/size);
   }
@@ -679,11 +681,14 @@ int main(int argc, char **argv){
   }
   
   //run command
-  isp_cmd_identify(&dev);
-  if( !dev_readinfo(&dev) )run_flags.cmd = COMMAND_ERR;
+  if( !isp_cmd_identify(&dev) ){
+    run_flags.cmd = COMMAND_ERR;
+  }else if( !dev_readinfo(&dev) ){
+    run_flags.cmd = COMMAND_ERR;
+  }
   
   wch_info_t *info = NULL;
-  if(!run_flags.db_ignore){
+  if(!run_flags.db_ignore && run_flags.cmd != COMMAND_ERR){
     info = wch_info_read_dir("devices", 1, dev.type, dev.id);
     if(info == NULL){
       fprintf(stderr, "Could not find the device [0x%.2X 0x%.2X] in databse\n", dev.type ,dev.id);

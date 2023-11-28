@@ -25,6 +25,7 @@ wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func, wch_if_debug
   if(port == NULL)return NULL;
   
   wch_if_uart_t tty = wch_if_uart_open(portname, 115200);
+  //wch_if_uart_t tty = wch_if_uart_open(portname, 9600);
   wch_if_uart_timeout(tty, 1000);
   
   port->maxdatasize = 61;
@@ -116,7 +117,8 @@ void wch_if_close_uart(wch_if_t *interf){
 ///////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-#if defined(linux) || defined(__linux) || defined(__linux__) || defined(__GNU__) || defined(__GLIBC__)
+#if defined(linux) || defined(__linux) || defined(__linux__) || defined(__GNU__) || defined(__GLIBC__) \
+    || defined(__APPLE__) || defined(__MACH__)
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -227,7 +229,8 @@ ssize_t wch_if_uart_write(wch_if_uart_t tty, void *buf, size_t count){
   if(tty == NULL)return -1;
   return write( tty->fd, buf, count );
 }
-
+#if 0
+// nonblocking read must read at least 1 byte. If connection fails the timeout will be infinite
 ssize_t wch_if_uart_read(wch_if_uart_t tty, void *buf, size_t count){
   if(tty == NULL)return -1;
   if((count > 1) && (tty->ttyset.c_cc[VTIME]>0)){
@@ -235,6 +238,16 @@ ssize_t wch_if_uart_read(wch_if_uart_t tty, void *buf, size_t count){
     tcsetattr( tty->fd, TCSANOW, &(tty->ttyset) );
   }
   return read( tty->fd, buf, count );
+}
+#endif
+ssize_t wch_if_uart_read(wch_if_uart_t tty, void *buf, size_t count){
+  if(tty == NULL)return -1;
+  size_t i = 0;
+  for(;i<count; i++){
+    size_t res = read( tty->fd, &((char*)buf)[i], 1);
+    if(res <= 0)break;
+  }
+  return i;
 }
 
 int wch_if_uart_timeout(wch_if_uart_t tty, ssize_t time_ms){

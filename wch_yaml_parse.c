@@ -641,7 +641,9 @@ char wch_info_modify(wch_info_t *info, char str[]){
 }
 
 
-#if defined(linux) || defined(__linux) || defined(__linux__) || defined(__GNU__) || defined(__GLIBC__)
+#if defined(linux) || defined(__linux) || defined(__linux__) || defined(__GNU__) || defined(__GLIBC__)\
+    || defined(__APPLE__) || defined(__MACH__)
+    
 #include <dirent.h>
 wch_info_t* wch_info_read_dir(char dirname[], char recur, uint8_t type, uint8_t id){
   wch_info_t *res = NULL;
