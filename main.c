@@ -623,6 +623,7 @@ void help(char name[]){
 
 #define StrEq(str, sample) (strncmp(str, sample, sizeof(sample)-1) == 0)
 int main(int argc, char **argv){
+  if(argc < 2){ help(argv[0]); return 0; }
   for(int i=1; i<argc; i++){
     if(argv[i][0] == '-' && argv[i][1] != '-'){
       for(int j=1; argv[i][j]!=0; j++){

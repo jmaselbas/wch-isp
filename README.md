@@ -45,8 +45,9 @@ This utility has been tested on:
 List detected device in bootloader mode:
 
 ```sh
-$ ./wch-isp list
-found bt ver 0209 uid = [ 87-80-CB-26-3B-38-8D-DF ]
+./wch-isp list
+found 0x19 0x3B ( CH32V203G8R6 ), bt ver.0206 uid = [ CD-AB-1D-36-51-BC-3B-9E ]
+found 0x17 0x71 ( CH32V307RCT6 ), bt ver.0209 uid = [ 87-80-CB-26-3B-38-8D-DF ]
 ```
 
 Flash the `firmware.bin` file via USB, `-p` enable the progress.
