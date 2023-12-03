@@ -19,13 +19,13 @@ static size_t uart_if_recv(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t d
 
 wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func, wch_if_debug debug_func ){
   if(portname == NULL){fprintf(stderr, "portname = NULL\n"); return NULL;}
-//TODO if portname == NULL add function to list all avaible COM-ports and try to connect
+#warning if portname == NULL add function to list all avaible COM-ports and try to connect
   
   wch_if_t port = (wch_if_t)malloc(sizeof(struct wch_if));
   if(port == NULL)return NULL;
   
   wch_if_uart_t tty = wch_if_uart_open(portname, 115200);
-  //wch_if_uart_t tty = wch_if_uart_open(portname, 9600);
+  if(tty == NULL){fprintf(stderr, "Can not open [%s]\n", portname); return NULL;}
   wch_if_uart_timeout(tty, 1000);
   
   port->maxdatasize = 61;
@@ -96,7 +96,8 @@ static size_t uart_if_recv(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t d
   for(int i=2; i<(datalen+6); i++)sum+=buf[i];
   if(buf[datalen+6] != sum)printf("uart_if_recv: checksum error: %.2X (exp. %.2X)\n", buf[datalen+6], sum);
   
-  if( interf->debug )interf->debug(interf, "uart_if_recv", 0, len+7, buf);
+  //if( interf->debug )interf->debug(interf, "uart_if_recv", 0, len+7, buf);
+  if( interf->debug )interf->debug(interf, "uart_if_recv", 0, res+6, buf);
   
   if(len > datalen)len = datalen;
   if(data != NULL)memcpy(data, &buf[6], len);
@@ -298,6 +299,10 @@ wch_if_uart_t wch_if_uart_open(char name[], unsigned int baudrate){
                 OPEN_EXISTING, 
                 FILE_ATTRIBUTE_NORMAL,
                 NULL);
+  if(res->handle == INVALID_HANDLE_VALUE){
+    free(res);
+    return NULL;
+  }
   if(res->handle == (HANDLE)-1){
     free(res);
     return NULL;
@@ -354,24 +359,28 @@ wch_if_uart_t wch_if_uart_open(char name[], unsigned int baudrate){
 }
 
 int wch_if_uart_close(wch_if_uart_t tty){
+  if(tty == NULL)return -1;
   CloseHandle(tty->handle);
   free(tty);
   return 0;
 }
 
 ssize_t wch_if_uart_write(wch_if_uart_t tty, void *buf, size_t count){
+  if(tty == NULL)return -1;
   DWORD cnt;
   if( !WriteFile(tty->handle, buf, (DWORD)count, &cnt, NULL))return -1;
   return cnt;
 }
 
 ssize_t wch_if_uart_read(wch_if_uart_t tty, void *buf, size_t count){
+  if(tty == NULL)return -1;
   DWORD cnt;
   if( !ReadFile(tty->handle, buf, (DWORD)count, &cnt, NULL))return -1;
   return cnt;
 }
 
 int wch_if_uart_timeout(wch_if_uart_t tty, ssize_t time_ms){
+  if(tty == NULL)return -1;
   COMMTIMEOUTS timeout;
   GetCommTimeouts(tty->handle, &timeout);
   timeout.ReadIntervalTimeout = time_ms;
