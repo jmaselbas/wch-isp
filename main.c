@@ -6,6 +6,8 @@
 #include "wch_if.h"
 #include "wch_yaml_parse.h"
 
+#define DATABASE_PATH "./devices"
+
 /*
  *  All readable and writable registers.
  *  - `RDPR`: Read Protection
@@ -482,14 +484,29 @@ static char match_rtsdtr(wch_if_t self){
 char *dev_uid = NULL;
 static char match_dev_list(wch_if_t self){
   isp_dev dev = {.id = 0, .type = 0};
+  char *dev_name = NULL;
   dev.port = self;
   match_rtsdtr(self);
   isp_cmd_identify(&dev);
   if(dev.id == 0 || dev.type == 0)return 0;
   dev_readinfo(&dev);
-  printf("found bt ver %.4X uid = [ ", dev.bootloader_ver);
+  
+  wch_info_t *info = NULL;
+  if(!run_flags.db_ignore){
+    info = wch_info_read_dir(DATABASE_PATH, 1, dev.type, dev.id);
+    if(info == NULL){
+      fprintf(stderr, "Could not find the device [0x%.2X 0x%.2X] in databse\n", dev.type ,dev.id);
+    }
+    if(info->name)dev_name = info->name;
+  }
+  
+  printf("found 0x%.2X 0x%.2X", dev.type, dev.id);
+  if(dev_name)printf(" ( %s )", dev_name);
+  printf(", bt ver.%.4X uid = [ ", dev.bootloader_ver);
+  
   for(int i=0; i<7; i++)printf("%.2X-", dev.uid[i]);
   printf("%.2X ]\n", dev.uid[7]);
+  wch_info_free(&info);
   return 0;
 }
 static char match_dev_uid(wch_if_t self){
@@ -689,7 +706,7 @@ int main(int argc, char **argv){
   
   wch_info_t *info = NULL;
   if(!run_flags.db_ignore && run_flags.cmd != COMMAND_ERR){
-    info = wch_info_read_dir("devices", 1, dev.type, dev.id);
+    info = wch_info_read_dir(DATABASE_PATH, 1, dev.type, dev.id);
     if(info == NULL){
       fprintf(stderr, "Could not find the device [0x%.2X 0x%.2X] in databse\n", dev.type ,dev.id);
       run_flags.cmd = COMMAND_ERR;
@@ -705,6 +722,20 @@ int main(int argc, char **argv){
     uint8_t *data = NULL;
     size_t size = 0;
     char res = 0;
+    
+    if(info != NULL){
+      wch_regs_t *reg = NULL;
+      wch_bitfield_t *rdpr = NULL;
+      char res = dev_read_options(&dev);
+      if(!res){fprintf(stderr, "Reading option bytes from MCU: failed\n");}
+      wch_info_regs_import(info, dev.optionbytes, sizeof(dev.optionbytes)/sizeof(dev.optionbytes[0]));
+      reg = wch_bitfield_byname(info, "RDPR", &rdpr);
+      if(reg!=NULL && rdpr != NULL){
+        uint32_t val = wch_bitfield_val(rdpr, reg->curval);
+        if(val != 0xA5)printf("\nWARNING: mcu locked by RDPR bits. Try to run 'unlock' command\n\n");
+      }
+    }
+    
     file_read(filename, &size, &data);
     //printf("file size = %zu\n", size);
     if(!run_flags.db_ignore){
@@ -768,10 +799,6 @@ int main(int argc, char **argv){
   
   do{
     if(run_flags.cmd == COMMAND_OPTION || run_flags.cmd == COMMAND_OPTSHOW || run_flags.cmd == COMMAND_UNLOCK){
-      if(run_flags.cmd == COMMAND_UNLOCK){
-        #warning TODO: Some controllers may have another way to unlock
-        optionstr = (char*)optstr_unlock_RDPR;
-      }
       if(info == NULL || info->errflag){
         fprintf(stderr, "Reading database failed but it necessary for correct execution of the command\n");
         break;
@@ -781,6 +808,24 @@ int main(int argc, char **argv){
       char res = dev_read_options(&dev);
       if(!res){fprintf(stderr, "Reading option bytes from MCU: failed\n"); break;}
       wch_info_regs_import(info, dev.optionbytes, sizeof(dev.optionbytes)/sizeof(dev.optionbytes[0]));
+      
+      if(run_flags.cmd == COMMAND_UNLOCK){
+        wch_regs_t *reg = NULL;
+        wch_bitfield_t *rdpr = NULL;
+        char res = dev_read_options(&dev);
+        if(!res){fprintf(stderr, "Reading option bytes from MCU: failed\n"); break;}
+        wch_info_regs_import(info, dev.optionbytes, sizeof(dev.optionbytes)/sizeof(dev.optionbytes[0]));
+        reg = wch_bitfield_byname(info, "RDPR", &rdpr);
+        if(reg!=NULL && rdpr != NULL){
+          uint32_t val = wch_bitfield_val(rdpr, reg->curval);
+          if(val == 0xA5){printf("Device is already unlocked; Do nothing\n"); break;}
+          optionstr = (char*)optstr_unlock_RDPR;
+        }else{
+          printf("The unlocking method is unknown for this device; Do nothing\n");
+          break;
+        }
+      }
+      
       res = wch_info_modify(info, optionstr);
       if(!res){fprintf(stderr, "Can not apply command '%s' to optionbytes\n", optionstr); break;}
       

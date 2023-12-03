@@ -436,7 +436,7 @@ static char* show_bin(uint32_t x){
   return buf;
 }
 
-static uint32_t wch_bitfield_val(wch_bitfield_t *fld, uint32_t reg){
+uint32_t wch_bitfield_val(wch_bitfield_t *fld, uint32_t reg){
   if(fld == NULL){fprintf(stderr, "wch_bitfield_val: fld = NULL\n"); return reg;}
   uint32_t mask = 0xFFFFFFFF;
   mask = (mask << (31 - fld->en)) >> (31 - fld->en) >> (fld->st);
@@ -507,10 +507,10 @@ static wch_regs_t* regs_byname(wch_info_t *info, char name[]){
   return NULL;
 }
 
-static wch_regs_t* bitfield_byname(wch_info_t *info, char name[], wch_bitfield_t **res_field){
+wch_regs_t* wch_bitfield_byname(wch_info_t *info, char name[], wch_bitfield_t **res_field){
   *res_field = NULL;
-  if(info == NULL){fprintf(stderr, "bitfield_byname: info = NULL\n"); return NULL;}
-  if(info->reg == NULL){fprintf(stderr, "bitfield_byname: info.regs = NULL\n"); return NULL;}
+  if(info == NULL){fprintf(stderr, "wch_bitfield_byname: info = NULL\n"); return NULL;}
+  if(info->reg == NULL){fprintf(stderr, "wch_bitfield_byname: info.regs = NULL\n"); return NULL;}
   for(int i=0; i<info->reg_count; i++){
     for(int j=0; j<info->reg[i].field_count; j++){
       if(strcasecmp(info->reg[i].field[j].name, name)==0){
@@ -627,7 +627,7 @@ char wch_info_modify(wch_info_t *info, char str[]){
       reg->curval = ival;
     }else{
       wch_bitfield_t *fld = NULL;
-      reg = bitfield_byname(info, tok, &fld);
+      reg = wch_bitfield_byname(info, tok, &fld);
       if(fld == NULL){
         fprintf(stderr, "Incorrect name [%s]\n", tok); free(buf); info->errflag = 1; return 0;
       }

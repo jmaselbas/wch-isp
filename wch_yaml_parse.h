@@ -43,5 +43,7 @@ void wch_info_show(wch_info_t *info);
 void wch_info_regs_import(wch_info_t *info, uint32_t *regs, size_t reg_count);
 void wch_info_regs_export(wch_info_t *info, uint32_t *regs, size_t reg_count);
 char wch_info_modify(wch_info_t *info, char str[]);
+wch_regs_t* wch_bitfield_byname(wch_info_t *info, char name[], wch_bitfield_t **res_field);
+uint32_t wch_bitfield_val(wch_bitfield_t *fld, uint32_t reg);
 
 #endif
