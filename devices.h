@@ -111,7 +111,7 @@ const struct db devices[] = {
 		{ 0x37, "CH32V203F6P6", SZ_32K },
 		{ /* sentinel */ } }
 	},
-	{ .type = 0x17, .flash_sector_size = 4096,
+	{ .type = 0x17, .flash_sector_size = 1024,
 	  .name = "CH32V30x",
 	  .flash_cfg = &(const struct flash_cfg[4]){
 		  [0] = { SZ_192K, SZ_192K },
