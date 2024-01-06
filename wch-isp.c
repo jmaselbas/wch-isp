@@ -490,6 +490,8 @@ get_cur_flash_size(struct isp_dev *dev)
 	mod = (cfg[2] >> 6) & 0x3;
 	if (dev->db && dev->db->flash_cfg)
 		dev->flash_size = (*dev->db->flash_cfg)[mod].code;
+	else
+		dev->flash_size = SZ_UNKNOWN;
 }
 
 static void
