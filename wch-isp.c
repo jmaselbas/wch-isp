@@ -917,8 +917,6 @@ main(int argc, char **argv)
 	struct isp_dev *dev;
 	size_t i;
 
-	argv0 = argv[0];
-
 	ARGBEGIN {
 	case 'p':
 		do_progress = 1;
