@@ -865,7 +865,7 @@ usage(int help)
 	printf("usage: %s [-VDnpr] [-d <uid>] COMMAND [ARG ...]\n", argv0);
 	printf("       %s [-VDnpr] [-d <uid>] [flash|write|verify|reset] FILE\n", argv0);
 	printf("       %s [-VDnpr] [-d <uid>] [erase|config|remove-wp]\n", argv0);
-	printf("       %s [-VDnpr] list\n", argv0);
+	printf("       %s [-VDnpr] [list]\n", argv0);
 	if (!help)
 		exit(1);
 
@@ -899,6 +899,17 @@ static const struct {
 	{ "config", cmd_config_show },
 	{ "remove-wp", cmd_remove_wp },
 };
+
+static int
+is_valid_cmd(const char *name)
+{
+	size_t i;
+	for (i = 0; i < LEN(cmds); i++) {
+		if (streq(name, cmds[i].name))
+			return 1;
+	}
+	return 0;
+}
 
 int
 main(int argc, char **argv)
@@ -938,10 +949,10 @@ main(int argc, char **argv)
 		usage(0);
 	} ARGEND;
 
-	usb_init();
+	if (argc > 0 && !is_valid_cmd(argv[0]))
+		die("%s: invalid command\n", argv[0]);
 
-	if (argc < 1)
-		die("missing command\n");
+	usb_init();
 
 	if (dev_count == 0)
 		die("no device detected\n");
@@ -949,7 +960,7 @@ main(int argc, char **argv)
 	for (i = 0; i < dev_count; i++)
 		isp_init(&dev_list[i]);
 
-	if (streq(argv[0], "list")) {
+	if (argc < 1 || streq(argv[0], "list")) {
 		for (i = 0; i < dev_count; i++) {
 			printf("%zd: ", i);
 			print_dev(&dev_list[i]);
