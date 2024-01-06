@@ -846,6 +846,22 @@ dev_by_uid(const char *uid)
 	return NULL;
 }
 
+static struct isp_dev *
+dev_by_index(const char *s)
+{
+	char *e = NULL;
+	unsigned long i;
+
+	i = strtoul(s, &e, 0);
+	if (i == ULONG_MAX || (e != NULL && *e != '\0'))
+		return NULL;
+
+	if (i < dev_count)
+		return &dev_list[i];
+
+	return NULL;
+}
+
 static void
 print_dev(struct isp_dev *dev)
 {
@@ -973,6 +989,8 @@ main(int argc, char **argv)
 	dev = &dev_list[0];
 	if (do_match) {
 		dev = dev_by_uid(do_match);
+		if (!dev)
+			dev = dev_by_index(do_match);
 		if (!dev)
 			die("no device match for '%s'\n", do_match);
 	}
