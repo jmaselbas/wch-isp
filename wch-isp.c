@@ -834,6 +834,37 @@ cmd_reset(struct isp_dev *dev, __unused int argc, __unused char **argv)
 	isp_cmd_isp_end(dev, 1);
 }
 
+static void
+print_dev(struct isp_dev *dev)
+{
+	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s",
+	       dev->btver >> 8, dev->btver & 0xff,
+	       dev->uid_str, dev->type, dev->id,
+	       dev->name);
+	if (dev->flash_size != SZ_UNKNOWN)
+		printf(" (flash %dK)", dev->flash_size / SZ_1K);
+	else
+		printf(" (flash size unknown)");
+}
+
+static void
+list_devices(void)
+{
+	size_t i;
+
+	for (i = 0; i < dev_count; i++) {
+		printf("%zd: ", i);
+		print_dev(&dev_list[i]);
+		printf("\n");
+	}
+}
+
+static void
+cmd_list_devices(__unused struct isp_dev *dev, __unused int argc, __unused char **argv)
+{
+	list_devices();
+}
+
 static struct isp_dev *
 dev_by_uid(const char *uid)
 {
@@ -860,19 +891,6 @@ dev_by_index(const char *s)
 		return &dev_list[i];
 
 	return NULL;
-}
-
-static void
-print_dev(struct isp_dev *dev)
-{
-	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s",
-	       dev->btver >> 8, dev->btver & 0xff,
-	       dev->uid_str, dev->type, dev->id,
-	       dev->name);
-	if (dev->flash_size != SZ_UNKNOWN)
-		printf(" (flash %dK)", dev->flash_size / SZ_1K);
-	else
-		printf(" (flash size unknown)");
 }
 
 char *argv0;
@@ -909,6 +927,7 @@ static const struct {
 	const char *name;
 	void (*func)(struct isp_dev *dev, int argc, char **argv);
 } cmds[] = {
+	{ "list", cmd_list_devices },
 	{ "flash", cmd_write_flash },
 	{ "write", cmd_write_flash },
 	{ "verify", cmd_verify_flash },
@@ -977,11 +996,7 @@ main(int argc, char **argv)
 		isp_init(&dev_list[i]);
 
 	if (argc < 1 || streq(argv[0], "list")) {
-		for (i = 0; i < dev_count; i++) {
-			printf("%zd: ", i);
-			print_dev(&dev_list[i]);
-			printf("\n");
-		}
+		list_devices();
 		goto out;
 	}
 
