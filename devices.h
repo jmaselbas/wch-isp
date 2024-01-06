@@ -106,9 +106,9 @@ const struct db devices[] = {
 		{ 0x33, "CH32V203C6T6", SZ_32K },
 		{ 0x34, "CH32V203RBT6", SZ_FROM_CONF },
 		{ 0x35, "CH32V203K6T6", SZ_32K },
-		{ 0x35, "CH32V203G6U6", SZ_32K },
-		{ 0x35, "CH32V203F6P6", SZ_32K },
+		{ 0x36, "CH32V203G6U6", SZ_32K },
 		{ 0x37, "CH32V203F6P6", SZ_32K },
+		{ 0x39, "CH32V203F6P6", SZ_32K },
 		{ /* sentinel */ } }
 	},
 	{ .type = 0x17, .flash_sector_size = 4096,
