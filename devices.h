@@ -9,10 +9,15 @@
 #define SZ_60K (60 * SZ_1K)
 #define SZ_64K (64 * SZ_1K)
 #define SZ_128K (128 * SZ_1K)
+#define SZ_144K (144 * SZ_1K)
+#define SZ_160K (160 * SZ_1K)
 #define SZ_192K (192 * SZ_1K)
 #define SZ_224K (224 * SZ_1K)
+#define SZ_256K (256 * SZ_1K)
+#define SZ_288K (288 * SZ_1K)
 #define SZ_448K (448 * SZ_1K)
 #define SZ_480K (480 * SZ_1K)
+#define SZ_UNDEFINE 0
 
 /* record for a device */
 struct db_dev {
@@ -78,19 +83,25 @@ const struct db devices[] = {
 	{ .type = 0x19, .flash_sector_size = 1024,
 	  .name = "CH32V20x",
 	  .devs = (const struct db_dev[]){
-		{ 0x80, "CH32V208WBU6", SZ_480K },
-		{ 0x81, "CH32V208RBT6", SZ_128K },
-		{ 0x82, "CH32V208CBU6", SZ_128K },
-		{ 0x83, "CH32V208CBU6", SZ_128K },
+		{ 0x80, "CH32V208WBU6", SZ_UNDEFINE },
+		{ 0x81, "CH32V208RBT6", SZ_UNDEFINE },
+		{ 0x82, "CH32V208CBU6", SZ_UNDEFINE },
+		{ 0x83, "CH32V208CBU6", SZ_UNDEFINE },
 		{ 0x30, "CH32V203C8U6", SZ_64K },
 		{ 0x31, "CH32V203C8T6", SZ_64K },
 		{ 0x32, "CH32V203K8T6", SZ_64K },
 		{ 0x33, "CH32V203C6T6", SZ_32K },
-		{ 0x34, "CH32V203RBT6", SZ_128K },
+		{ 0x34, "CH32V203RBT6", SZ_UNDEFINE },
 		{ 0x35, "CH32V203K6T6", SZ_32K },
 		{ 0x35, "CH32V203G6U6", SZ_32K },
 		{ 0x35, "CH32V203F6P6", SZ_32K },
 		{ 0x37, "CH32V203F6P6", SZ_32K },
+		{ /* sentinel */ } }
+	},
+	{ .type = 0x17, .flash_sector_size = 4096,
+	  .name = "CH32V30x",
+	  .devs = (const struct db_dev[]){
+		{ 0x70, "CH32V307VCT6", SZ_UNDEFINE },
 		{ /* sentinel */ } }
 	},
 };

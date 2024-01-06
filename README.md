@@ -22,6 +22,7 @@ options:
 This utility has been tested on:
  - CH32V103
  - CH569W
+ - CH32V307VCT6 (Board YD-CH32V307VCT6)
 
 
 ## Examples
@@ -31,6 +32,12 @@ List detected device in bootloader mode:
 $ wch-isp list
 0: BTVER v2.7 UID 8d-ff-ba-e4-c2-84-09-69 [0x1069] CH569
 1: BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+```
+```sh
+$ wch-isp list
+0: BTVER v2.9 UID 10-46-89-26-3b-38-d4-a4 [0x1770] CH32V307VCT6
+MCU current flash size: 256 Kbyte
+
 ```
 
 Flash the `firmware.bin` file, `-p` enable the progress bar.
