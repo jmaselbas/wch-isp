@@ -480,43 +480,16 @@ static void
 get_cur_flash_size(struct isp_dev *dev)
 {
 	u8 cfg[16];
-	u8 ram_code_mod;
+	u8 mod;
 	size_t len;
 
 	len = isp_cmd_read_conf(dev, CFG_MASK_USERCONF, sizeof(cfg), cfg);
 	if (len < 12)
 		die("config: invalid length\n");
-	ram_code_mod = (cfg[2] >> 6) & 0x03;
 
-	if (dev->id == 0x70) {
-		switch (ram_code_mod) {
-		case 0x00: dev->flash_size = SZ_192K;
-			break;
-		case 0x01: dev->flash_size = SZ_224K;
-			break;
-		case 0x02: dev->flash_size = SZ_256K;
-			break;
-		case 0x03: dev->flash_size = SZ_288K;
-			break;
-		}
-	}
-
-	if ((dev->id == 0x80) ||
-	    (dev->id == 0x81) ||
-	    (dev->id == 0x82) ||
-	    (dev->id == 0x83) ||
-	    (dev->id == 0x34)) {
-		switch (ram_code_mod) {
-		case 0x00: dev->flash_size = SZ_128K;
-			break;
-		case 0x01: dev->flash_size = SZ_144K;
-			break;
-		case 0x02: dev->flash_size = SZ_160K;
-			break;
-		case 0x03: dev->flash_size = SZ_160K;
-			break;
-		}
-	}
+	mod = (cfg[2] >> 6) & 0x3;
+	if (dev->db && dev->db->flash_cfg)
+		dev->flash_size = (*dev->db->flash_cfg)[mod].code;
 }
 
 static void

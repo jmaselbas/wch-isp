@@ -28,12 +28,18 @@ struct db_dev {
 	u32 eeprom_size;
 };
 
+struct flash_cfg {
+	u32 code;
+	u32 sram;
+};
+
 /* record for a device family */
 struct db {
 	u8 type;
 	u32 flash_sector_size;
 	const char *name;
 	int (*show_conf)(struct isp_dev *dev, size_t len, u8 *cfg);
+	const struct flash_cfg (*flash_cfg)[4]; /* look-up table */
 	const struct db_dev *devs;
 };
 
@@ -83,6 +89,12 @@ const struct db devices[] = {
 	},
 	{ .type = 0x19, .flash_sector_size = 1024,
 	  .name = "CH32V20x",
+	  .flash_cfg = &(const struct flash_cfg[4]){
+		  [0] = { SZ_128K, SZ_UNKNOWN },
+		  [1] = { SZ_144K, SZ_UNKNOWN },
+		  [2] = { SZ_160K, SZ_UNKNOWN },
+		  [3] = { SZ_160K, SZ_UNKNOWN },
+	  },
 	  .devs = (const struct db_dev[]){
 		{ 0x80, "CH32V208WBU6", SZ_FROM_CONF },
 		{ 0x81, "CH32V208RBT6", SZ_FROM_CONF },
@@ -101,6 +113,12 @@ const struct db devices[] = {
 	},
 	{ .type = 0x17, .flash_sector_size = 4096,
 	  .name = "CH32V30x",
+	  .flash_cfg = &(const struct flash_cfg[4]){
+		  [0] = { SZ_192K, SZ_192K },
+		  [1] = { SZ_224K, SZ_128K },
+		  [2] = { SZ_256K,  SZ_64K },
+		  [3] = { SZ_288K,  SZ_32K },
+	  },
 	  .devs = (const struct db_dev[]){
 		{ 0x70, "CH32V307VCT6", SZ_FROM_CONF },
 		{ /* sentinel */ } }
