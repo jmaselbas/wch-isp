@@ -44,7 +44,7 @@ static int ch56x_show_conf(struct isp_dev *dev, size_t len, u8 *cfg);
  *  | DATA0  | nDATA0 | DATA1  | nDATA1 |
  *  | WPR0   | WPR1   | WPR2   | WPR3   |
  */
-#define CFG_MASK_RDPR_USER_DATA_WPR 0x07
+#define CFG_MASK_USERCONF 0x07 /* 12 bytes, see table above */
 #define CFG_MASK_BTVER 0x08 /* Bootloader version, in the format of `[0x00, major, minor, 0x00]` */
 #define CFG_MASK_UID 0x10 /* Device Unique ID */
 #define CFG_MASK_ALL 0x1f /* All mask bits of CFGs */
@@ -483,7 +483,7 @@ get_cur_flash_size(struct isp_dev *dev)
 	u8 ram_code_mod;
 	size_t len;
 
-	len = isp_cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
+	len = isp_cmd_read_conf(dev, CFG_MASK_USERCONF, sizeof(cfg), cfg);
 	if (len < 12)
 		die("config: invalid length\n");
 	ram_code_mod = (cfg[2] >> 6) & 0x03;
@@ -816,7 +816,7 @@ cmd_config_show(struct isp_dev *dev, __unused int argc, __unused char **argv)
 	size_t len, i;
 	int ret;
 
-	len = isp_cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
+	len = isp_cmd_read_conf(dev, CFG_MASK_USERCONF, sizeof(cfg), cfg);
 
 	if (dev->db && dev->db->show_conf) {
 		ret = dev->db->show_conf(dev, len, cfg);
@@ -834,12 +834,12 @@ cmd_remove_wp(struct isp_dev *dev, __unused int argc, __unused char **argv)
 	u8 cfg[16];
 	size_t len;
 
-	len = isp_cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
+	len = isp_cmd_read_conf(dev, CFG_MASK_USERCONF, sizeof(cfg), cfg);
 	if (cfg[0] == 0xa5) {
 		printf("write protection already off\n");
 	} else {
 		cfg[0] = 0xa5;
-		isp_cmd_write_conf(dev, 0x7, len, cfg);
+		isp_cmd_write_conf(dev, CFG_MASK_USERCONF, len, cfg);
 		printf("write protection disabled\n");
 	}
 }
