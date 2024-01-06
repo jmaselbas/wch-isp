@@ -22,6 +22,7 @@ options:
 This utility has been tested on:
  - CH32V103
  - CH569W
+ - CH32V307VCT6 (Board YD-CH32V307VCT6)
 
 
 ## Examples

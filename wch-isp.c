@@ -477,6 +477,49 @@ db_flash_sector_size(struct isp_dev *dev)
 }
 
 static void
+get_cur_flash_size(struct isp_dev *dev)
+{
+	u8 cfg[16];
+	u8 ram_code_mod;
+	size_t len;
+
+	len = isp_cmd_read_conf(dev, 0x7, sizeof(cfg), cfg);
+	if (len < 12)
+		die("config: invalid length\n");
+	ram_code_mod = (cfg[2] >> 6) & 0x03;
+
+	if (dev->id == 0x70) {
+		switch (ram_code_mod) {
+		case 0x00: dev->flash_size = SZ_192K;
+			break;
+		case 0x01: dev->flash_size = SZ_224K;
+			break;
+		case 0x02: dev->flash_size = SZ_256K;
+			break;
+		case 0x03: dev->flash_size = SZ_288K;
+			break;
+		}
+	}
+
+	if ((dev->id == 0x80) ||
+	    (dev->id == 0x81) ||
+	    (dev->id == 0x82) ||
+	    (dev->id == 0x83) ||
+	    (dev->id == 0x34)) {
+		switch (ram_code_mod) {
+		case 0x00: dev->flash_size = SZ_128K;
+			break;
+		case 0x01: dev->flash_size = SZ_144K;
+			break;
+		case 0x02: dev->flash_size = SZ_160K;
+			break;
+		case 0x03: dev->flash_size = SZ_160K;
+			break;
+		}
+	}
+}
+
+static void
 isp_init_from_db(struct isp_dev *dev)
 {
 	const struct db *db = NULL;
@@ -509,6 +552,8 @@ isp_init_from_db(struct isp_dev *dev)
 	if (db_dev) {
 		dev->name = db_dev->name;
 		dev->flash_size = db_dev->flash_size;
+		if (dev->flash_size == SZ_UNDEFINE)
+			get_cur_flash_size(dev);
 		dev->eeprom_size = db_dev->eeprom_size;
 	}
 }
@@ -925,6 +970,7 @@ main(int argc, char **argv)
 			       dev->btver >> 8, dev->btver & 0xff,
 			       dev->uid_str, dev->type, dev->id,
 			       dev->name);
+			printf("MCU current flash size: %d Kbyte\n", dev->flash_size/1024);
 		}
 		goto out;
 	}
@@ -941,6 +987,7 @@ main(int argc, char **argv)
 	       dev->btver >> 8, dev->btver & 0xff,
 	       dev->uid_str, dev->type, dev->id,
 	       dev->name);
+	printf("MCU current flash size: %d Kbyte\n", dev->flash_size/1024);
 	isp_key_init(dev);
 
 	for (i = 0; i < LEN(cmds); i++) {
