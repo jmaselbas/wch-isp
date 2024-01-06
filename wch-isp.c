@@ -528,7 +528,7 @@ isp_init_from_db(struct isp_dev *dev)
 
 	dev->flash_sector_size = SECTOR_SIZE;
 	dev->name = "unknown";
-	dev->flash_size = 0xffff;
+	dev->flash_size = SZ_UNKNOWN;
 	dev->eeprom_size = 0;
 
 	for (i = 0; i < LEN(devices); i++) {
@@ -552,7 +552,7 @@ isp_init_from_db(struct isp_dev *dev)
 	if (db_dev) {
 		dev->name = db_dev->name;
 		dev->flash_size = db_dev->flash_size;
-		if (dev->flash_size == SZ_UNDEFINE)
+		if (dev->flash_size == SZ_FROM_CONF)
 			get_cur_flash_size(dev);
 		dev->eeprom_size = db_dev->eeprom_size;
 	}
