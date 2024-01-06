@@ -844,6 +844,19 @@ dev_by_uid(const char *uid)
 	return NULL;
 }
 
+static void
+print_dev(struct isp_dev *dev)
+{
+	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s",
+	       dev->btver >> 8, dev->btver & 0xff,
+	       dev->uid_str, dev->type, dev->id,
+	       dev->name);
+	if (dev->flash_size != SZ_UNKNOWN)
+		printf(" (flash %dK)", dev->flash_size / SZ_1K);
+	else
+		printf(" (flash size unknown)");
+}
+
 char *argv0;
 
 static void
@@ -938,12 +951,9 @@ main(int argc, char **argv)
 
 	if (streq(argv[0], "list")) {
 		for (i = 0; i < dev_count; i++) {
-			dev = &dev_list[i];
-			printf("%zd: BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n", i,
-			       dev->btver >> 8, dev->btver & 0xff,
-			       dev->uid_str, dev->type, dev->id,
-			       dev->name);
-			printf("MCU current flash size: %d Kbyte\n", dev->flash_size/1024);
+			printf("%zd: ", i);
+			print_dev(&dev_list[i]);
+			printf("\n");
 		}
 		goto out;
 	}
@@ -956,11 +966,8 @@ main(int argc, char **argv)
 			die("no device match for '%s'\n", do_match);
 	}
 
-	printf("BTVER v%d.%d UID %s [0x%.2x%.2x] %s\n",
-	       dev->btver >> 8, dev->btver & 0xff,
-	       dev->uid_str, dev->type, dev->id,
-	       dev->name);
-	printf("MCU current flash size: %d Kbyte\n", dev->flash_size/1024);
+	print_dev(dev);
+	printf("\n");
 	isp_key_init(dev);
 
 	for (i = 0; i < LEN(cmds); i++) {
