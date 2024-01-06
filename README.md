@@ -8,10 +8,10 @@ This utility started as a rewrite in C of the rust tool [wchisp](https://github.
 usage: wch-isp [-VDnpr] [-d <uid>] COMMAND [ARG ...]
        wch-isp [-VDnpr] [-d <uid>] [flash|write|verify|reset] FILE
        wch-isp [-VDnpr] [-d <uid>] [erase|config|remove-wp]
-       wch-isp [-VDnpr] list
+       wch-isp [-VDnpr] [list]
 
 options:
-  -d <uid> Select the usb device that matches the uid
+  -d <uid> Select the usb device that matches by uid first, else by index
   -n       No verify after writing to flash, done by default
   -p       Print a progress-bar during command operation
   -r       Reset after command completed
@@ -30,14 +30,15 @@ This utility has been tested on:
 List detected device in bootloader mode:
 ```sh
 $ wch-isp list
-0: BTVER v2.7 UID 8d-ff-ba-e4-c2-84-09-69 [0x1069] CH569
-1: BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+0: BTVER v2.7 UID 8d-ff-ba-e4-c2-84-09-69 [0x1069] CH569 (flash 448K)
+1: BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WB (flash 128K)
+2: BTVER v2.6 UID cd-ab-72-86-45-bc-84-ee [0x1931] CH32V203C8 (flash 64K)
 ```
 
 Flash the `firmware.bin` file, `-p` enable the progress bar.
 ```
 $ wch-isp -p flash firmware.bin
-BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WB (flash 128K)
 [####################################################] write 35392/35392
 [####################################################] verify 35392/35392
 flash done
@@ -46,7 +47,7 @@ flash done
 Erase the device's flash, select the device by it's uid (option `-d`).
 ```
 $ wch-isp -d f2-3e-88-26-3b-38-b5-9d erase
-BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WBU6
+BTVER v2.5 UID f2-3e-88-26-3b-38-b5-9d [0x1980] CH32V208WB (flash 128K)
 erase done
 ```
 

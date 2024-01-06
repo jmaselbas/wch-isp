@@ -906,7 +906,7 @@ usage(int help)
 		exit(1);
 
 	printf("options:\n");
-	printf("  -d <uid> Select the usb device that matches the uid\n");
+	printf("  -d <uid> Select the usb device that matches by uid first, else by index\n");
 	printf("  -n       No verify after writing to flash, done by default\n");
 	printf("  -p       Print a progress-bar during command operation\n");
 	printf("  -r       Reset after command completed\n");
