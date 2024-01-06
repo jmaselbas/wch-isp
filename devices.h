@@ -120,6 +120,11 @@ const struct db devices[] = {
 		  [3] = { SZ_288K,  SZ_32K },
 	  },
 	  .devs = (const struct db_dev[]){
+		{ 0x30, "CH32V303VC", SZ_FROM_CONF },
+		{ 0x31, "CH32V303RC", SZ_FROM_CONF },
+		{ 0x32, "CH32V303RB", SZ_128K },
+		{ 0x33, "CH32V303CB", SZ_128K },
+		{ 0x50, "CH32V305RB", SZ_128K },
 		{ 0x70, "CH32V307VC", SZ_FROM_CONF },
 		{ /* sentinel */ } }
 	},
