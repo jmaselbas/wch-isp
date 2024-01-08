@@ -27,6 +27,7 @@ typedef struct{
   uint8_t type, id;
   char *name;
   size_t flash_size;
+  size_t flash_total;
   size_t eeprom_size;
   size_t eeprom_start_addr;
   size_t reg_count;

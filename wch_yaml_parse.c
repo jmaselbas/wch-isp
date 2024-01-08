@@ -262,7 +262,7 @@ static uint32_t read_bitfield(char *str){
   return strtoull(str, NULL, 10);
 }
 
-static uint32_t read_units(wch_info_t *info, char *str){
+static uint32_t read_units(wch_info_t *info, char *field, char *str){
   uint32_t res = 0;
   char *uns;
   res = strtoull(str, &uns, 10);
@@ -272,7 +272,7 @@ static uint32_t read_units(wch_info_t *info, char *str){
     res *= 1024*1024;
   }else if(uns[0] != 0){
     info->errflag = 1;
-    fprintf(stderr, "Warning: unknown units [%c] in 'flash_size' field\n", uns[0]);
+    fprintf(stderr, "Warning: unknown units [%c] in '%s' field\n", uns[0], field);
   }
   return res;
 }
@@ -319,7 +319,18 @@ wch_info_t* wch_info_read_file(char filename[], uint8_t type, uint8_t id){
     info->flash_size = 0;
     info->errflag = 1;
   }else{
-    info->flash_size = read_units(info, cur->value);
+    info->flash_size = read_units(info, "flash_size", cur->value);
+  }
+  
+  //flash_total
+  cur = yvar_byname(dev->parent, "flash_total");
+  if(cur == NULL){
+    cur = yvar_byname(com->parent, "flash_total");
+  }
+  if(cur == NULL){
+    info->flash_total = 0;
+  }else{
+    info->flash_total = read_units(info, "flash_total", cur->value);
   }
   
   //eeprom size
@@ -327,11 +338,11 @@ wch_info_t* wch_info_read_file(char filename[], uint8_t type, uint8_t id){
   info->eeprom_start_addr = 0;
   cur = yvar_byname(dev->parent, "eeprom_size");
   if(cur != NULL){
-    info->eeprom_size = read_units(info, cur->value);
+    info->eeprom_size = read_units(info, ", eeprom_size", cur->value);
   }
   cur = yvar_byname(dev->parent, "eeprom_start_addr");
   if(cur != NULL){
-    info->eeprom_start_addr = read_units(info, cur->value);
+    info->eeprom_start_addr = read_units(info, "eeprom_start_addr", cur->value);
   }
   
   //regs
@@ -528,6 +539,8 @@ void wch_info_show(wch_info_t *info){
   printf("Device 0x%.2X 0x%.2X\n", info->type, info->id);
   printf("name = [%s]\n", info->name);
   printf("flash size = %s\n", show_bin(info->flash_size));
+  //if(info->flash_total)
+    printf("total flash size = %s\n", show_bin(info->flash_total));
   if(info->eeprom_size){
     printf("eeprom %s, ", show_bin(info->eeprom_size));
     printf("starts from %s\n", show_bin(info->eeprom_start_addr));

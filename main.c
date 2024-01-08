@@ -399,6 +399,8 @@ struct{
   unsigned int progress:1;
   unsigned int fin_reset:1;
   unsigned int db_ignore:1;
+  unsigned int ignore_flash_size:1;
+  unsigned int ignore_flash_total:1;
 }run_flags = {
   .pin_rst = PIN_NONE,
   .pin_boot= PIN_NONE,
@@ -406,7 +408,9 @@ struct{
   .noverify = 0,
   .progress = 0,
   .fin_reset = 0,
-  .db_ignore = 0.
+  .db_ignore = 0,
+  .ignore_flash_size = 0,
+  .ignore_flash_total = 0,
 };
 
 static char do_bulk(isp_dev_t dev, uint8_t cmd, uint32_t addr, size_t size, uint8_t data[]){
@@ -598,6 +602,8 @@ void help(char name[]){
   printf("\t-d           Debug mode, show raw commands\n");
   printf("\t-r           Reset after command completed\n");
   printf("\t-b           Do not read database\n");
+  printf("\t-f           Ignore if firmware size more than cached flash size (program memory)\n");
+  printf("\t-F           Ignore if firmware size more than total flash size (program memory + const data memory)\n");
   printf("\t--port=USB   Specify port as USB (default)\n");
   printf("\t--port=/dev/ttyUSB0 \t Specify port as COM-port '/dev/ttyUSB0'\n");
   printf("\t--port='//./COM3'   \t Specify port as COM-port '//./COM3'\n");
@@ -658,6 +664,8 @@ int main(int argc, char **argv){
           case 'd': debug_func = debug; break;
           case 'r': run_flags.fin_reset = 1; break;
           case 'b': run_flags.db_ignore = 1; break;
+          case 'f': run_flags.ignore_flash_size=1; break;
+          case 'F': run_flags.ignore_flash_total=1; break;
           default: printf("Unknown option [-%c]\n", argv[i][j]); return -1;
         }
       }
@@ -774,10 +782,22 @@ int main(int argc, char **argv){
         run_flags.cmd = COMMAND_ERR;
       }
       if(size > info->flash_size){
-        fprintf(stderr, "Firmware size (%zu kB) more then avaible flash (%zu kB)\n", (size_t)(size+1023)/1024, (size_t)(info->flash_size + 1023)/1024);
-        free(data);
-        data = NULL;
-        run_flags.cmd = COMMAND_ERR;
+        if((info->flash_total == 0)||(size > info->flash_total)){
+          fprintf(stderr, "Firmware size (%zu kB) more then avaible flash (%zu kB)\n", (size_t)(size+1023)/1024, (size_t)(info->flash_size + 1023)/1024);
+          if(!run_flags.ignore_flash_size && !run_flags.ignore_flash_total){
+            free(data);
+            data = NULL;
+            run_flags.cmd = COMMAND_ERR;
+          }
+        }else{
+          fprintf(stderr, "WARNING: Firmware size (%zu kB) more then cached flash (%zu kB)\n", (size_t)(size+1023)/1024, (size_t)(info->flash_size + 1023)/1024);
+          fprintf(stderr, "  use flag '-f' to ignore\n");
+          if(!run_flags.ignore_flash_total){
+            free(data);
+            data = NULL;
+            run_flags.cmd = COMMAND_ERR;
+          }
+        }
       }
     }
     

@@ -21,6 +21,15 @@ Prints a progress during command operation.
 .B \-r
 Reset the microcontroller after the command is completed.
 .TP
+.B \-b
+Do not read database
+.TP
+.B \-f
+Ignore if firmware size more than cached flash size (program memory)
+.TP
+.B \-F
+Ignore if firmware size more than total flash size (program memory + const data memory)
+.TP
 .B \-d
 Enable debug information, print raw isp commands sent over USB or COM-port.
 .TP

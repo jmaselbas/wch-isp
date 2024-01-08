@@ -6,6 +6,7 @@ support_net: false
 support_usb: true
 support_serial: true
 description: CH32V30x (RISC-V4F) Series
+flash_total: 480k
 config_registers:
   - offset: 0x00
     name: RDPR_USER

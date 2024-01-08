@@ -13,6 +13,9 @@ usage: ./wch-isp [OPTIONS] COMMAND [ARG...]
         -p           Show progress bar
         -d           Debug mode, show raw commands
         -r           Reset after command completed
+        -b           Do not read database\n");
+        -f           Ignore if firmware size more than cached flash size (program memory)
+        -F           Ignore if firmware size more than total flash size (program memory + const data memory
         --port=USB   Specify port as USB (default)
         --port=/dev/ttyUSB0      Specify port as COM-port '/dev/ttyUSB0'
         --port='//./COM3'        Specify port as COM-port '//./COM3'
