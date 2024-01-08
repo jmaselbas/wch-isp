@@ -14,9 +14,15 @@ endif
 
 PKG_CONFIG = pkg-config
 
+ifneq ($(OPTIONS),small)
 # include and libs
 INCS += `$(PKG_CONFIG) --cflags libusb-1.0`  `$(PKG_CONFIG) --cflags yaml-0.1`
 LIBS += `$(PKG_CONFIG) --libs libusb-1.0`  `$(PKG_CONFIG) --libs yaml-0.1`
+else
+# include and libs
+INCS += -DBUILD_SMALL
+LIBS += 
+endif
 
 # Flags
 WCHISP_CPPFLAGS = -DVERSION=\"$(VERSION)\" $(CPPFLAGS)
@@ -31,7 +37,11 @@ BIN = wch-isp
 MAN = wch-isp.1
 DISTFILES = $(SRC) $(HDR) $(MAN) 50-wchisp.rules Makefile
 
+
 all: $(BIN)
+
+small:
+	make OPTIONS="small" all
 
 $(BIN): $(OBJ)
 	$(CC) -o $@ $^ $(WCHISP_LDFLAGS)
@@ -64,4 +74,4 @@ dist:
 clean:
 	rm -f $(OBJ) $(BIN)
 
-.PHONY: all install install-rules uninstall dist clean
+.PHONY: all install install-rules uninstall dist clean test

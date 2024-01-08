@@ -1,3 +1,12 @@
+#ifdef BUILD_SMALL
+
+  #warning USB disabled
+  #include "wch_if.h"
+  wch_if_t wch_if_open_usb( wch_if_match match_func, wch_if_debug debug_func ){return NULL;}
+  void wch_if_close_usb(wch_if_t *interface){}
+  
+#else
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -174,3 +183,4 @@ void wch_if_close_usb(wch_if_t *interface){
   free(*interface);
   *interface = NULL;
 }
+#endif

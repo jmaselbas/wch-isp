@@ -1,3 +1,4 @@
+#ifndef BUILD_SMALL
 #include <yaml.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -748,4 +749,25 @@ wch_info_t* wch_info_read_dir(char dirname[], char recur, uint8_t type, uint8_t 
 
 #else
   #error "Unsupported platform"
+#endif
+
+#else //ifdef BUILD_SMALL
+
+#warning DATABASE DISABLED
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <inttypes.h>
+#include "wch_yaml_parse.h"
+wch_info_t* wch_info_read_file(char filename[], uint8_t type, uint8_t id){return NULL;}
+wch_info_t* wch_info_read_dir(char dirname[], char recur, uint8_t type, uint8_t id){return NULL;}
+void wch_info_free(wch_info_t **info){}
+void wch_info_show(wch_info_t *info){}
+void wch_info_regs_import(wch_info_t *info, uint32_t *regs, size_t reg_count){}
+void wch_info_regs_export(wch_info_t *info, uint32_t *regs, size_t reg_count){}
+char wch_info_modify(wch_info_t *info, char str[]){return 0;}
+wch_regs_t* wch_bitfield_byname(wch_info_t *info, char name[], wch_bitfield_t **res_field){return NULL;}
+uint32_t wch_bitfield_val(wch_bitfield_t *fld, uint32_t reg){return 0;}
+
+
 #endif

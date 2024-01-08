@@ -587,6 +587,7 @@ void show_version(char name[]){
   printf("%s %s\n", name, VERSION);
 }
 
+#ifndef BUILD_SMALL
 void help(char name[]){
   printf("usage: %s [OPTIONS] COMMAND [ARG]\n", name);
   printf("  OPTIONS:\n");
@@ -620,6 +621,28 @@ void help(char name[]){
   printf("\t    example: %s optionbytes 'RDPR=0xA5, DATA0 = 0x42'\n", name);
   printf("\toptionshow 'CMD'  show changes after apply CMD to optionbytes; Do not write\n");
 }
+#else
+void help(char name[]){
+  printf("usage: %s --port=<PORT> [OPTIONS] COMMAND [ARG]\n", name);
+  printf("  OPTIONS:\n");
+  printf("\t-v           Print version and exit\n");
+  printf("\t-h, --help   Show this help and exit\n");
+  printf("\t--port=/dev/ttyUSB0 \t Specify port as COM-port '/dev/ttyUSB0'\n");
+  printf("\t--port='//./COM3'   \t Specify port as COM-port '//./COM3'\n");
+  printf("\t--reset=PIN  Use PIN as RESET\n");
+  printf("\t--boot0=PIN  Use PIN as Boot0\n");
+  printf("\t    'PIN' may be 'RTS', 'DTR', 'nRTS' or 'nDTR'\n");
+
+  printf("\n");
+  printf("  COMMAND:\n");
+  printf("\twrite FILE        write file (.hex or .bin)\n");
+  printf("\tverify FILE       verify file (.hex ot .bin)\n");
+}
+
+void init_small(){
+  run_flags.db_ignore = 1;
+}
+#endif
 
 #define StrEq(str, sample) (strncmp(str, sample, sizeof(sample)-1) == 0)
 int main(int argc, char **argv){
@@ -684,6 +707,10 @@ int main(int argc, char **argv){
       fprintf(stderr, "Unknown command [%s]\n", argv[i]); return -1;
     }
   }
+
+#ifdef BUILD_SMALL
+  init_small();
+#endif
   
   //Connect
   isp_dev dev;
