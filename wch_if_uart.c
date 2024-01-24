@@ -82,6 +82,10 @@ static size_t uart_if_recv(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t d
   res = wch_if_uart_read(TTY, buf, 6);
   if(res != 6){fprintf(stderr, "uart_if_recv: timeout\n"); return 0;}
   datalen = (uint16_t)buf[5]<<8 | buf[4];
+  if(datalen > (sizeof(buf)-7)){
+    fprintf(stderr, "uart_if_recv: got wrong 'len' %i (more than %i)\n", datalen, (int)(sizeof(buf)-7));
+    return 0;
+  }
   
   res = wch_if_uart_read(TTY, &buf[6], datalen+1);
   if(res != (datalen+1)){fprintf(stderr, "uart_if_recv: timeout\n"); return 0;}
