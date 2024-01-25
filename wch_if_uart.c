@@ -3,6 +3,8 @@
 #include <string.h>
 #include "wch_if.h"
 
+#define UART_TIMEOUT_ms	1000
+
 struct wch_if_uart;
 typedef struct wch_if_uart* wch_if_uart_t;
 
@@ -12,6 +14,7 @@ ssize_t wch_if_uart_write(wch_if_uart_t tty, void *buf, size_t count);
 ssize_t wch_if_uart_read(wch_if_uart_t tty, void *buf, size_t count);
 int wch_if_uart_timeout(wch_if_uart_t tty, ssize_t time_ms);
 
+static void uart_if_flush(wch_if_uart_t tty);
 
 static size_t uart_if_send(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t data[]);
 static size_t uart_if_recv(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t data[]);
@@ -26,7 +29,8 @@ wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func, wch_if_debug
   
   wch_if_uart_t tty = wch_if_uart_open(portname, 115200);
   if(tty == NULL){fprintf(stderr, "Can not open [%s]\n", portname); return NULL;}
-  wch_if_uart_timeout(tty, 1000);
+  wch_if_uart_timeout(tty, UART_TIMEOUT_ms);
+  uart_if_flush(tty);
   
   port->maxdatasize = 61;
   port->send = uart_if_send;
@@ -114,6 +118,16 @@ void wch_if_close_uart(wch_if_t *interf){
   
   free(*interf);
   *interf = NULL;
+}
+
+static void uart_if_flush(wch_if_uart_t tty){
+  char ch;
+  ssize_t res;
+  wch_if_uart_timeout(tty, 100);
+  do{
+    res = wch_if_uart_read(tty, &ch, 1);
+  }while(res > 0);
+  wch_if_uart_timeout(tty, UART_TIMEOUT_ms);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -270,6 +284,7 @@ void wch_if_uart_rts(wch_if_t interf, char state){
   ioctl(TTY->fd, TIOCMGET, &flags);
   flags = (flags &~TIOCM_RTS) | (state*TIOCM_RTS);
   ioctl(TTY->fd, TIOCMSET, &flags);
+  uart_if_flush(TTY);
 }
 
 void wch_if_uart_dtr(wch_if_t interf, char state){
@@ -278,6 +293,7 @@ void wch_if_uart_dtr(wch_if_t interf, char state){
   ioctl(TTY->fd, TIOCMGET, &flags);
   flags = (flags &~TIOCM_DTR) | (state*TIOCM_DTR);
   ioctl(TTY->fd, TIOCMSET, &flags);
+  uart_if_flush(TTY);
 }
 
 #elif defined(_WIN32) || defined(__WIN32__) || defined(WIN32)
@@ -402,12 +418,14 @@ void wch_if_uart_rts(wch_if_t interf, char state){
   DWORD code;
   if(state)code = IOCTL_SERIAL_CLR_RTS; else code = IOCTL_SERIAL_SET_RTS;
   DeviceIoControl(TTY->handle, code, NULL, 0, NULL, 0, NULL, NULL);
+  uart_if_flush(TTY);
 }
 
 void wch_if_uart_dtr(wch_if_t interf, char state){
   DWORD code;
   if(state)code = IOCTL_SERIAL_CLR_DTR; else code = IOCTL_SERIAL_SET_DTR;
   DeviceIoControl(TTY->handle, code, NULL, 0, NULL, 0, NULL, NULL);
+  uart_if_flush(TTY);
 }
 
 #else
