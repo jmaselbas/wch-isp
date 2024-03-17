@@ -39,7 +39,7 @@ Prints version information to stdout, then exits.
 .B \-h, --help
 Prints help message to stdout, then exits.
 .TP
-.B \--port=<PORT>
+.B \--port=<PORT> [baudrate]
 Specify port to connect the device. It may be 'USB' or '/dev/ttyUSB0' or '//./COM2' or something else
 .TP
 .B \--device=<DEV>
@@ -130,10 +130,11 @@ Unlock read-protection and write 0x42 to DATA0 field in optionbytes:
 .PP
 .in +4n
 .EX
-.RB "$ " "./wch-isp optionbytes 'RDPR=0xA5 DATA0 = 0x42'"
+.RB "$ " "./wch-isp --port=/dev/tty_CH32_PROG_0 9600 optionbytes 'RDPR=0xA5 DATA0 = 0x42'"
 Option bytes write:
-  0xC03F5AA5
-  0xBA45BD42
+  0x609F5AA5
+  0xFF00FF42
   0xFFFFFFFF
 Done
+
 

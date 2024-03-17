@@ -20,7 +20,9 @@ static size_t uart_if_send(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t d
 static size_t uart_if_recv(wch_if_t interf, uint8_t cmd, uint16_t len, uint8_t data[]);
 #define TTY ( (wch_if_uart_t)(interf->intern) )
 
-wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func, wch_if_debug debug_func ){
+#define CMD_SET_BAUD	0xC5
+
+wch_if_t wch_if_open_uart(char portname[], uint32_t baudrate, wch_if_match match_func, wch_if_debug debug_func ){
   if(portname == NULL){fprintf(stderr, "portname = NULL\n"); return NULL;}
 #warning if portname == NULL add function to list all avaible COM-ports and try to connect
   
@@ -42,6 +44,21 @@ wch_if_t wch_if_open_uart(char portname[], wch_if_match match_func, wch_if_debug
   
   if(match_func){
     if(!match_func(port))wch_if_close_uart(&port);
+  }
+  
+  if(baudrate != 0 && baudrate != 115200){
+    uint8_t buf[4];
+    buf[0] = (baudrate >> 0) & 0xFF;
+    buf[1] = (baudrate >> 8) & 0xFF;
+    buf[2] = (baudrate >>16) & 0xFF;
+    buf[3] = (baudrate >>24) & 0xFF;
+    uart_if_send(port, CMD_SET_BAUD, 4, buf);
+    uart_if_recv(port, CMD_SET_BAUD, 2, buf);
+    wch_if_uart_close(tty);
+    tty = wch_if_uart_open(portname, baudrate);
+    wch_if_uart_timeout(tty, UART_TIMEOUT_ms);
+    uart_if_flush(tty);
+    port->intern = tty;
   }
   
   return port;

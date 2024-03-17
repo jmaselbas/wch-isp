@@ -578,6 +578,7 @@ int rtsdtr_decode(char *str){
 
 typedef char (*command_t)(isp_dev_t);
 char *port_name = "usb";
+uint32_t port_speed = 0;
 char *dev_name = NULL;
 char *filename = NULL;
 char *optionstr = NULL;
@@ -650,6 +651,21 @@ void init_small(){
 }
 #endif
 
+char parse_baudrate(char *port_name, int idx, int argc, char** argv){
+  uint32_t baud = 0;
+  if(strcasecmp(port_name, "usb")==0)return 0;
+  if(idx >= argc)return 0;
+  char *res;
+  baud = strtol(argv[idx], &res, 10);
+  if(res[0] == 0){
+    port_speed = baud;
+    return 1;
+  }else{
+    return 0;
+  }
+  return 1;
+}
+
 #define StrEq(str, sample) (strncmp(str, sample, sizeof(sample)-1) == 0)
 int main(int argc, char **argv){
   if(argc < 2){ help(argv[0]); return 0; }
@@ -673,6 +689,7 @@ int main(int argc, char **argv){
       help(argv[0]); return 0;
     }else if(StrEq(argv[i], "--port=")){
       port_name = &argv[i][7];
+      if(parse_baudrate(port_name, i+1, argc, argv))i++;
     }else if(StrEq(argv[i], "--device=")){
       dev_name = &argv[i][9];
     }else if(StrEq(argv[i], "--uid=")){
@@ -725,7 +742,7 @@ int main(int argc, char **argv){
   if(strcasecmp(port_name, "usb")==0){
     dev.port = wch_if_open_usb(match_func, debug_func);
   }else{
-    dev.port = wch_if_open_uart(port_name, match_func, debug_func);
+    dev.port = wch_if_open_uart(port_name, port_speed, match_func, debug_func);
   }
   if(match_func == match_dev_list)return 0;
   if(dev.port == NULL){

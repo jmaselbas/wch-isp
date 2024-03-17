@@ -17,8 +17,8 @@ usage: ./wch-isp [OPTIONS] COMMAND [ARG...]
         -f           Ignore if firmware size more than cached flash size (program memory)
         -F           Ignore if firmware size more than total flash size (program memory + const data memory
         --port=USB   Specify port as USB (default)
-        --port=/dev/ttyUSB0      Specify port as COM-port '/dev/ttyUSB0'
-        --port='//./COM3'        Specify port as COM-port '//./COM3'
+        --port=/dev/ttyUSB0 9600   Specify port as COM-port '/dev/ttyUSB0' with speed 9600 baud
+        --port='//./COM3'          Specify port as COM-port '//./COM3'
         --device=DEV Test if connected device is DEV and exit if they differ
         --uid=AA-BB-CC-DD-EE-FF-GG-HH   Specify device UID
         --reset=PIN  Use PIN as RESET
@@ -40,6 +40,7 @@ usage: ./wch-isp [OPTIONS] COMMAND [ARG...]
 
 This utility has been tested on:
  - CH32V307RCT6
+ - CH32V303CBT6
  - CH32V203G8R6
 
 
